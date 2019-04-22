@@ -349,6 +349,22 @@ public class PhoneWindowManager implements WindowManagerPolicy {
      */
     private boolean mKeyguardDrawnOnce;
 
+    /**
+     * Table of Application shortcuts.
+     */
+    static SparseArray<Intent> sApplicationShortcutTable;
+    static {
+        sApplicationShortcutTable = new SparseArray<Intent>();
+        sApplicationShortcutTable.append(
+                KeyEvent.KEYCODE_F7, null);
+        sApplicationShortcutTable.append(
+                KeyEvent.KEYCODE_F8, null);
+        sApplicationShortcutTable.append(
+                KeyEvent.KEYCODE_F9, null);
+        sApplicationShortcutTable.append(
+                KeyEvent.KEYCODE_F10, null);
+    }
+
     /** Amount of time (in milliseconds) to wait for windows drawn before powering on. */
     static final int WAITING_FOR_DRAWN_TIMEOUT = 1000;
 
@@ -3182,6 +3198,24 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     }
                 }
                 break;
+        }
+
+        // Set Shortcut keys.
+        if (down & repeatCount == 0 && !keyguardOn) {
+            Intent intent = sApplicationShortcutTable.get(keyCode);
+            if (intent != null) {
+                if (intent.getPackage().equals("home"))
+                    launchHomeFromHotKey(displayId);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try {
+                    startActivityAsUser(intent, UserHandle.CURRENT);
+                } catch (ActivityNotFoundException ex) {
+                    Slog.w(TAG, "Dropping application launch key because "
+                            + "the activity to which it is registered was not found: "
+                            + "keyCode=" + keyCode + ", app =" + intent.getPackage(), ex);
+                }
+                return -1;
+            }
         }
 
         if (isValidGlobalKey(keyCode)
@@ -6201,6 +6235,31 @@ public class PhoneWindowManager implements WindowManagerPolicy {
             Log.d(TAG, "longPressToAssistant = " + longPressToAssistant);
         }
         return (longPressToAssistant == 1);
+    }
+
+    /*
+     * Set the shortcut of application. appIntent could be the null.
+     */
+    public void setApplicationShortcut(int keyCode, Intent appIntent) {
+        if (KeyEvent.KEYCODE_F7 <= keyCode &&
+                keyCode <= KeyEvent.KEYCODE_F10) {
+            sApplicationShortcutTable.put(keyCode, appIntent);
+        } else {
+            Slog.w(TAG, "Shortcut mapping key should F7 ~ F10 " +
+                    "received keyCode = " + keyCode);
+        }
+    }
+
+    public String getApplicationOfShortcutAt(int keyCode) {
+        if (KeyEvent.KEYCODE_F7 <= keyCode &&
+                keyCode <= KeyEvent.KEYCODE_F10) {
+            Intent intent = sApplicationShortcutTable.get(keyCode);
+            if (intent == null)
+                return "";
+            else
+                return intent.getPackage();
+        }
+        return null;
     }
 
     private class HdmiVideoExtconUEventObserver extends ExtconStateObserver<Boolean> {

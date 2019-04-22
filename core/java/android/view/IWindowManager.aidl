@@ -24,6 +24,7 @@ import com.android.internal.policy.IShortcutService;
 import android.app.IAssistDataReceiver;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.GraphicBuffer;
 import android.graphics.Point;
@@ -961,4 +962,10 @@ interface IWindowManager
      * treatment.
      */
     boolean isLetterboxBackgroundMultiColored();
+
+    /**
+     * Set application shortcut.
+     */
+    void setApplicationShortcut(int keyCode, in Intent intent);
+    String getApplicationOfShortcutAt(int keyCode);
 }
