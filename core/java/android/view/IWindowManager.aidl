@@ -25,6 +25,7 @@ import android.app.IAssistDataReceiver;
 import android.content.ComponentName;
 import android.content.res.CompatibilityInfo;
 import android.content.res.Configuration;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.GraphicBuffer;
 import android.graphics.Point;
@@ -1027,4 +1028,10 @@ interface IWindowManager
      * @return List of ComponentNames corresponding to the activities that were notified.
     */
     List<ComponentName> notifyScreenshotListeners(int displayId);
+
+    /**
+     * Set application shortcut.
+     */
+    void setApplicationShortcut(int keyCode, in Intent intent);
+    String getApplicationOfShortcutAt(int keyCode);
 }
