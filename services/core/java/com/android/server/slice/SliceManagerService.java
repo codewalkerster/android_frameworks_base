@@ -26,10 +26,7 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Process.SYSTEM_UID;
 
 import android.Manifest.permission;
-import android.app.ActivityManager;
 import android.app.AppOpsManager;
-import android.app.ContentProviderHolder;
-import android.app.IActivityManager;
 import android.app.slice.ISliceManager;
 import android.app.slice.SliceSpec;
 import android.app.usage.UsageStatsManagerInternal;
