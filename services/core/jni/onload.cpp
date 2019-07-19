@@ -69,6 +69,7 @@ int register_com_android_server_audio_RkAudioSetting(JNIEnv* env);
  //-----rk-code-----
 int register_com_android_server_RKBoxManagementService(JNIEnv* env);
  //-----------------
+int register_google_android_things_odroid(JNIEnv* env);
 };
 
 using namespace android;
@@ -130,5 +131,6 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
     //-----rk-code-----
     register_com_android_server_RKBoxManagementService(env);
     //-----------------
+    register_google_android_things_odroid(env);
     return JNI_VERSION_1_4;
 }

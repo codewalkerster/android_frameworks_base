@@ -72,6 +72,7 @@ cc_library_static {
         "com_android_server_audio_RkAudioSetting.cpp",
         "rkbox/rklog.cpp",
         "com_android_server_RKBoxService.cpp",
+        "com_google_android_things_odroidThingService.cpp",
         "onload.cpp",
         ":lib_cachedAppOptimizer_native",
         ":lib_gameManagerService_native",
@@ -196,6 +197,7 @@ cc_defaults {
         "service.incremental",
         "rockchip.hardware.tv.input@1.0",
         "librksoundsetting",
+        "vendor.hardkernel.hardware.odroidthings@1.0",
     ],
 
     static_libs: [
