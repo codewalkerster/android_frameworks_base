@@ -66,6 +66,7 @@ int register_android_server_AdbDebuggingManager(JNIEnv* env);
 int register_android_server_GpuService(JNIEnv* env);
 int register_com_android_server_rkdisplay_RkDisplayModes(JNIEnv* env);
 int register_com_android_server_audio_RkAudioSetting(JNIEnv* env);
+int register_google_android_things_odroid(JNIEnv* env);
 };
 
 using namespace android;
@@ -127,5 +128,6 @@ extern "C" jint JNI_OnLoad(JavaVM* vm, void* /* reserved */)
     register_com_android_server_rkdisplay_RkDisplayModes(env);
     register_com_android_server_audio_RkAudioSetting(env);
 
+    register_google_android_things_odroid(env);
     return JNI_VERSION_1_4;
 }
