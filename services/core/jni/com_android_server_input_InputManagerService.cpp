@@ -42,6 +42,7 @@
 #include <android_view_VerifiedMotionEvent.h>
 #include <batteryservice/include/batteryservice/BatteryServiceConstants.h>
 #include <binder/IServiceManager.h>
+#include <cutils/properties.h>
 #include <input/Input.h>
 #include <input/PointerController.h>
 #include <input/SpriteController.h>
@@ -86,7 +87,7 @@ namespace android {
 // The exponent used to calculate the pointer speed scaling factor.
 // The scaling factor is calculated as 2 ^ (speed * exponent),
 // where the speed ranges from -7 to + 7 and is supplied by the user.
-static const float POINTER_SPEED_EXPONENT = 1.0f / 4;
+static float POINTER_SPEED_EXPONENT = 1.0f / 4;
 
 // Category (=namespace) name for the input settings that are applied at boot time
 static const char* INPUT_NATIVE_BOOT = "input_native_boot";
@@ -657,6 +658,10 @@ void NativeInputManager::getReaderConfiguration(InputReaderConfiguration* outCon
     { // acquire lock
         std::scoped_lock _l(mLock);
 
+        char propBuf[PROPERTY_VALUE_MAX];
+        property_get("persist.mouse_acceleration", propBuf, "true");
+        if (strcmp(propBuf, "false"))
+            POINTER_SPEED_EXPONENT = 0;
         outConfig->pointerVelocityControlParameters.scale = exp2f(mLocked.pointerSpeed
                 * POINTER_SPEED_EXPONENT);
         outConfig->pointerVelocityControlParameters.acceleration = mLocked.pointerAcceleration;
