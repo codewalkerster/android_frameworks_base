@@ -35,6 +35,7 @@
 #include <android_runtime/AndroidRuntime.h>
 #include <android_runtime/Log.h>
 
+#include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/Looper.h>
 #include <utils/threads.h>
@@ -88,7 +89,7 @@ namespace android {
 // The exponent used to calculate the pointer speed scaling factor.
 // The scaling factor is calculated as 2 ^ (speed * exponent),
 // where the speed ranges from -7 to + 7 and is supplied by the user.
-static const float POINTER_SPEED_EXPONENT = 1.0f / 4;
+static float POINTER_SPEED_EXPONENT = 1.0f / 4;
 static sp<PointerControllerInterface> mPointerController;
 
 static struct {
@@ -538,6 +539,10 @@ void NativeInputManager::getReaderConfiguration(InputReaderConfiguration* outCon
     { // acquire lock
         AutoMutex _l(mLock);
 
+        char propBuf[PROPERTY_VALUE_MAX];
+        property_get("persist.mouse_acceleration", propBuf, "true");
+        if (strcmp(propBuf, "false"))
+            POINTER_SPEED_EXPONENT = 0;
         outConfig->pointerVelocityControlParameters.scale = exp2f(mLocked.pointerSpeed
                 * POINTER_SPEED_EXPONENT);
         outConfig->pointerGesturesEnabled = mLocked.pointerGesturesEnabled;
