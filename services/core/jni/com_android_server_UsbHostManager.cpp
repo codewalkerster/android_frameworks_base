@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <cutils/properties.h>
 
 namespace android
 {
@@ -134,6 +135,8 @@ static int usb_device_added(const char *devname, void* client_data) {
 fail:
     usb_device_close(device);
     checkAndClearExceptionFromCallback(env, __FUNCTION__);
+
+    property_set("ctl.start", "usb_modeswitch");
 
     return 0;
 }
