@@ -1208,7 +1208,7 @@ public final class SystemServer {
             } else if (!context.getPackageManager().hasSystemFeature
                     (PackageManager.FEATURE_BLUETOOTH)) {
                 Slog.i(TAG, "No Bluetooth Service (Bluetooth Hardware Not Present)");
-            } else if (SystemProperties.getBoolean("feature.disable_bt", false)) {
+            } else if (SystemProperties.getBoolean("persist.bt.service.down", true)) {
                 Slog.i(TAG, "No Bluetooth Service (Disable Bluetooth Service)");
             } else {
                 t.traceBegin("StartBluetoothService");
