@@ -1037,7 +1037,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
 
         ButtonDispatcher volumeAddButton=mNavigationBarView.getVolumeAddButton();
         ButtonDispatcher volumeSubButton=mNavigationBarView.getVolumeSubButton();
-        boolean isShowVolumeButton="true".equals(SystemProperties.get("ro.rk.systembar.voiceicon","true"));
+        boolean isShowVolumeButton="false".equals(SystemProperties.get("persist.systembar.volume.hide","false"));
         if(isShowVolumeButton){
             volumeAddButton.setVisibility(View.VISIBLE);
             volumeSubButton.setVisibility(View.VISIBLE);
