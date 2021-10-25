@@ -685,7 +685,9 @@ public final class StrictMode {
             }
 
             private Builder enable(@ThreadPolicyMask int mask) {
-                mMask |= mask;
+                /* Deprecated for ODROID */
+                if (mask != PENALTY_FLASH)
+                    mMask |= mask;
                 return this;
             }
 
