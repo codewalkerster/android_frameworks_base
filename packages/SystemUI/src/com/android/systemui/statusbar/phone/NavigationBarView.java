@@ -124,6 +124,7 @@ public class NavigationBarView extends FrameLayout implements
     private KeyButtonDrawable mDockedIcon;
     private KeyButtonDrawable mVolumeAddIcon;
     private KeyButtonDrawable mVolumeSubIcon;
+    private KeyButtonDrawable mPowerOffIcon;
     private KeyButtonDrawable mScreenshotIcon;
 
     private EdgeBackGestureHandler mEdgeBackGestureHandler;
@@ -335,6 +336,7 @@ public class NavigationBarView extends FrameLayout implements
         mButtonDispatchers.put(R.id.screenshot, new ButtonDispatcher(R.id.screenshot));
         mButtonDispatchers.put(R.id.volume_add, new ButtonDispatcher(R.id.volume_add));
         mButtonDispatchers.put(R.id.volume_sub, new ButtonDispatcher(R.id.volume_sub));
+        mButtonDispatchers.put(R.id.poweroff, new ButtonDispatcher(R.id.poweroff));
         mDeadZone = new DeadZone(this);
 
         mNavColorSampleMargin = getResources()
@@ -491,6 +493,10 @@ public class NavigationBarView extends FrameLayout implements
         return mButtonDispatchers.get(R.id.volume_sub);
     }
 
+    public ButtonDispatcher getPowerOffButton() {
+        return mButtonDispatchers.get(R.id.poweroff);
+    }
+
     public RotationContextButton getRotateSuggestionButton() {
         return (RotationContextButton) mButtonDispatchers.get(R.id.rotate_suggestion);
     }
@@ -538,6 +544,7 @@ public class NavigationBarView extends FrameLayout implements
 
         mVolumeAddIcon = getDrawable(R.drawable.ic_sysbar_volume_add_button);
         mVolumeSubIcon = getDrawable(R.drawable.ic_sysbar_volume_sub_button);
+        mPowerOffIcon = getDrawable(R.drawable.ic_sysbar_poweroff);
         mScreenshotIcon = getDrawable(R.drawable.ic_sysbar_capture_button);
     }
 
@@ -694,6 +701,7 @@ public class NavigationBarView extends FrameLayout implements
         getBackButton().setImageDrawable(backIcon);
         getVolumeAddButton().setImageDrawable(mVolumeAddIcon);
         getVolumeSubButton().setImageDrawable(mVolumeSubIcon);
+        getPowerOffButton().setImageDrawable(mPowerOffIcon);
         getScreenshotButton().setImageDrawable(mScreenshotIcon);
 
         updateRecentsIcon();
