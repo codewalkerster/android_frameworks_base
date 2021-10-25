@@ -1037,17 +1037,22 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
 
         ButtonDispatcher volumeAddButton=mNavigationBarView.getVolumeAddButton();
         ButtonDispatcher volumeSubButton=mNavigationBarView.getVolumeSubButton();
+        ButtonDispatcher poweroffButtone = mNavigationBarView.getPowerOffButton();
+        poweroffButtone.setOnTouchListener(this::poweroffTouch);
         boolean isShowVolumeButton="false".equals(SystemProperties.get("persist.systembar.volume.hide","false"));
         if(isShowVolumeButton){
             volumeAddButton.setVisibility(View.VISIBLE);
             volumeSubButton.setVisibility(View.VISIBLE);
+            poweroffButtone.setVisibility(View.VISIBLE);
         }else{
             volumeAddButton.setVisibility(View.GONE);
             volumeSubButton.setVisibility(View.GONE);
+            poweroffButtone.setVisibility(View.GONE);
         }
         if (getContext().getResources().getConfiguration().smallestScreenWidthDp < 400) {
             volumeAddButton.setVisibility(View.GONE);
             volumeSubButton.setVisibility(View.GONE);
+            poweroffButtone.setVisibility(View.GONE);
         }
     }
 
@@ -1251,6 +1256,18 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         Intent intent=new Intent("android.intent.action.SCREENSHOT");
         getContext().sendBroadcast(intent);
         mLastClickScreenshotTime = nowTime;
+    }
+
+    private boolean poweroffTouch(View v, MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            Log.d(TAG, "poweroffTouch");
+            try {
+                Runtime.getRuntime().exec("input keyevent --longpress POWER");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return false;
     }
 
     private void onAccessibilityClick(View v) {
