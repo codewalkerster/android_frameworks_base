@@ -1262,7 +1262,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         if (event.getAction() == MotionEvent.ACTION_UP) {
             Log.d(TAG, "poweroffTouch");
             try {
-                Runtime.getRuntime().exec("input keyevent --longpress POWER");
+                Runtime.getRuntime().exec("input keyevent --longpress POWER -d 3");
             } catch (Exception e) {
                 e.printStackTrace();
             }
