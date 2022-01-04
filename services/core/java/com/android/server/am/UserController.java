@@ -77,6 +77,7 @@ import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.UserManagerInternal;
@@ -359,8 +360,11 @@ class UserController implements Handler.Callback {
     @GuardedBy("mLock")
     private boolean mInitialized;
 
+    private boolean mKIOSK;
+
     UserController(ActivityManagerService service) {
         this(new Injector(service));
+        mKIOSK = SystemProperties.getBoolean("persist.kiosk_mode", false);
     }
 
     @VisibleForTesting
@@ -560,9 +564,11 @@ class UserController implements Handler.Callback {
         }
         uss.mUnlockProgress.start();
 
-        // Prepare app storage before we go any further
-        uss.mUnlockProgress.setProgress(5,
-                    mInjector.getContext().getString(R.string.android_start_title));
+        if (!mKIOSK) {
+            // Prepare app storage before we go any further
+            uss.mUnlockProgress.setProgress(5,
+                        mInjector.getContext().getString(R.string.android_start_title));
+        }
 
         // Call onBeforeUnlockUser on a worker thread that allows disk I/O
         FgThread.getHandler().post(() -> {

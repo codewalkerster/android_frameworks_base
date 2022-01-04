@@ -642,6 +642,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private String mstate = null;
     private float mdeltax, mdeltay;
     boolean keydown;
+    boolean mKIOSK;
 
     public Handler mKeyMouseHandler = new Handler() {
         public void handleMessage(Message msg) {
@@ -2072,6 +2073,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         mWindowManagerFuncs.onKeyguardShowingAndNotOccludedChanged();
                     }
                 });
+
+        mKIOSK = SystemProperties.getBoolean("persist.kiosk_mode", false);
     }
 
     /**
@@ -5018,7 +5021,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     if (mPackageManager.isDeviceUpgrading()) {
                         mBootMsgDialog.setTitle(R.string.android_upgrading_title);
                     } else {
-                        mBootMsgDialog.setTitle(R.string.android_start_title);
+                        if (!mKIOSK)
+                            mBootMsgDialog.setTitle(R.string.android_start_title);
                     }
                     mBootMsgDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
                     mBootMsgDialog.setIndeterminate(true);

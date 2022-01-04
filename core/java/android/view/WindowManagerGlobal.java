@@ -156,6 +156,8 @@ public final class WindowManagerGlobal {
     @UnsupportedAppUsage
     private static IWindowSession sWindowSession;
 
+    private boolean mKIOSK = false;
+
     @UnsupportedAppUsage
     private final Object mLock = new Object();
 
@@ -171,6 +173,7 @@ public final class WindowManagerGlobal {
     private Runnable mSystemPropertyUpdater;
 
     private WindowManagerGlobal() {
+        mKIOSK = SystemProperties.getBoolean("persist.kiosk_mode", false);
     }
 
     @UnsupportedAppUsage
@@ -541,7 +544,9 @@ public final class WindowManagerGlobal {
     private int findViewLocked(View view, boolean required) {
         final int index = mViews.indexOf(view);
         if (required && index < 0) {
-            throw new IllegalArgumentException("View=" + view + " not attached to window manager");
+            if (!mKIOSK) {
+                throw new IllegalArgumentException("View=" + view + " not attached to window manager");
+            }
         }
         return index;
     }

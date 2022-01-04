@@ -438,12 +438,17 @@ public class DisplayLayout {
 
     static boolean hasNavigationBar(DisplayInfo info, Context context, int displayId) {
         if (displayId == Display.DEFAULT_DISPLAY) {
-            // Allow a system property to override this. Used by the emulator.
-            final String navBarOverride = SystemProperties.get("qemu.hw.mainkeys");
-            if ("1".equals(navBarOverride)) {
+            String kiosk = SystemProperties.get("persist.kiosk_mode");
+            if (kiosk.equals("true")) {
                 return false;
-            } else if ("0".equals(navBarOverride)) {
-                return true;
+            } else {
+                // Allow a system property to override this. Used by the emulator.
+                final String navBarOverride = SystemProperties.get("qemu.hw.mainkeys");
+                if ("1".equals(navBarOverride)) {
+                    return false;
+                } else if ("0".equals(navBarOverride)) {
+                    return true;
+                }
             }
             return context.getResources().getBoolean(R.bool.config_showNavigationBar);
         } else {

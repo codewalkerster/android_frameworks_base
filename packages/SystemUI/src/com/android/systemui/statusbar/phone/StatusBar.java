@@ -2245,7 +2245,12 @@ public class StatusBar extends SystemUI implements DemoMode,
                 setInteracting(StatusBarManager.WINDOW_STATUS_BAR, true);
             }
         }
-        return false;
+
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+        if (kiosk)
+            return true;
+        else
+            return false;
     }
 
     boolean isSameStatusBarState(int state) {
