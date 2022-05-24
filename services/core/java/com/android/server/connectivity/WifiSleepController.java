@@ -91,7 +91,6 @@ public class WifiSleepController {
             } else if (action.equals(Intent.ACTION_SCREEN_ON)) {
                 mIsScreenON = true;
                 exitSleepState();
-		SystemProperties.set(PERSISTENT_PROPERTY_WIFI_SLEEP_FLAG, "false");
             } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
                 mIsScreenON = false;
                 log("isScanAlwaysAvailable = " + mWifiManager.isScanAlwaysAvailable());
@@ -103,6 +102,7 @@ public class WifiSleepController {
                 mBtIsOpened = getBtIsEnabled();
                 mWifiIsOpened = getWifiIsEnabled();
                 if (shouldStartWifiSleep()) {
+                    SystemProperties.set(PERSISTENT_PROPERTY_WIFI_SLEEP_FLAG, "true");
                     setWifiSleepAlarm();
                     if(mBtIsOpened)
                         SystemProperties.set(PERSISTENT_PROPERTY_BT_SLEEP_FLAG, "true");
@@ -114,10 +114,8 @@ public class WifiSleepController {
                 //Sometimes we receive this action after SCREEN_ON.
                 //Turn off wifi should only happen when SCREEN_OFF.
                 if(!mIsScreenON) {
-                    if(mWifiIsOpened) {
+                    if(mWifiIsOpened)
                         setWifiEnabled(false);
-			SystemProperties.set(PERSISTENT_PROPERTY_WIFI_SLEEP_FLAG, "true");
-		    }
                     if(mBtIsOpened && mBtPowerDownSetting)
                         setBtEnabled(false);
                 }
@@ -207,6 +205,7 @@ public class WifiSleepController {
         if (mWifiSleepIntent != null) {
             if(mWifiIsOpened && !getWifiIsEnabled()){
                 setWifiEnabled(true);
+                SystemProperties.set(PERSISTENT_PROPERTY_WIFI_SLEEP_FLAG, "false");
             }
             if(mBtIsOpened && !getBtIsEnabled()){
                 setBtEnabled(true);
