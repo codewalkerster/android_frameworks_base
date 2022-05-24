@@ -95,8 +95,7 @@ public class WifiSleepController {
                 mIsScreenON = false;
                 log("isScanAlwaysAvailable = " + mWifiManager.isScanAlwaysAvailable());
                 boolean mWifiSleepConfig = SystemProperties.getBoolean("ro.wifi.sleep.power.down", false);
-                boolean cts_running = SystemProperties.getBoolean("cts_gts.status", false);
-                if(!cts_running && mWifiSleepConfig && mWifiManager.isScanAlwaysAvailable()) {
+                if(mWifiSleepConfig && mWifiManager.isScanAlwaysAvailable()) {
                     mWifiManager.setScanAlwaysAvailable(false);
                 }
                 mBtIsOpened = getBtIsEnabled();
