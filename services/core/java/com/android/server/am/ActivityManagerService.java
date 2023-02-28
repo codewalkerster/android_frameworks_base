@@ -3437,6 +3437,13 @@ public class ActivityManagerService extends IActivityManager.Stub
         // all such files and add them to a captured bug report if they're recent enough.
         maybePruneOldTraces(tracesDir);
 
+        File file = new File("/data");
+        long usableSpace = file.getUsableSpace();
+
+        if ( usableSpace < 1024 * 1024 * 1024) {
+            pruneOldTraces(tracesDir);
+        }
+
         // NOTE: We should consider creating the file in native code atomically once we've
         // gotten rid of the old scheme of dumping and lot of the code that deals with paths
         // can be removed.
@@ -3525,6 +3532,17 @@ public class ActivityManagerService extends IActivityManager.Stub
             // The modification times changed while we were sorting. Bail...
             // https://issuetracker.google.com/169836837
             Slog.w(TAG, "tombstone modification times changed while sorting; not pruning", e);
+        }
+    }
+
+    private static void pruneOldTraces(File tracesDir) {
+        final File[] files = tracesDir.listFiles();
+        if (files == null) return;
+
+        for (int i = 0; i < files.length; ++i) {
+            if (!files[i].delete()) {
+                Slog.w(TAG, "Unable to prune stale trace file: " + files[i]);
+            }
         }
     }
 
