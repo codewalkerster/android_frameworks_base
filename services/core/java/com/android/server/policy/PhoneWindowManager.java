@@ -880,6 +880,8 @@ public class PhoneWindowManager implements WindowManagerPolicy {
     private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_STATUS = 0;
     private static final int MSG_REQUEST_TRANSIENT_BARS_ARG_NAVIGATION = 1;
 
+    boolean mKIOSK = false;
+
     private class PolicyHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
@@ -1426,12 +1428,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         Message msg = mHandler.obtainMessage(MSG_POWER_LONG_PRESS);
                         msg.setAsynchronous(true);
                         mHandler.sendMessageDelayed(msg,
-                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout());
+                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() + (mKIOSK ? 1000 : 0));
 
                         Message msg2 = mHandler.obtainMessage(MSG_POWER_LONG_LONG_PRESS);
                         msg2.setAsynchronous(true);
                         mHandler.sendMessageDelayed(msg2,
-                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() * 10);
+                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() * 6);
 
                         if (hasVeryLongPressOnPowerBehavior()) {
                             Message longMsg = mHandler.obtainMessage(MSG_POWER_VERY_LONG_PRESS);
@@ -1450,12 +1452,12 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                         Message msg = mHandler.obtainMessage(MSG_POWER_LONG_PRESS);
                         msg.setAsynchronous(true);
                         mHandler.sendMessageDelayed(msg,
-                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout());
+                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() + (mKIOSK ? 1000 : 0));
 
                         Message msg2 = mHandler.obtainMessage(MSG_POWER_LONG_LONG_PRESS);
                         msg2.setAsynchronous(true);
                         mHandler.sendMessageDelayed(msg2,
-                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() * 10);
+                                ViewConfiguration.get(mContext).getDeviceGlobalActionKeyTimeout() * 6);
 
                         if (hasVeryLongPressOnPowerBehavior()) {
                             Message longMsg = mHandler.obtainMessage(MSG_POWER_VERY_LONG_PRESS);
@@ -1669,9 +1671,13 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         case LONG_PRESS_POWER_NOTHING:
             break;
         case LONG_PRESS_POWER_GLOBAL_ACTIONS:
-            mPowerKeyHandled = true;
-            performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
-            showGlobalActionsInternal();
+            if (mKIOSK) {
+                powerLongLongPress();
+            } else {
+                mPowerKeyHandled = true;
+                performHapticFeedbackLw(null, HapticFeedbackConstants.LONG_PRESS, false);
+                showGlobalActionsInternal();
+            }
             break;
         case LONG_PRESS_POWER_SHUT_OFF:
         case LONG_PRESS_POWER_SHUT_OFF_NO_CONFIRM:
@@ -2113,6 +2119,7 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
 
         mHandler = new PolicyHandler();
+        mKIOSK = SystemProperties.getBoolean("persist.kiosk_mode", false);
         mWakeGestureListener = new MyWakeGestureListener(mContext, mHandler);
         mOrientationListener = new MyOrientationListener(mContext, mHandler);
         try {
@@ -7935,7 +7942,6 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     if (mContext.getPackageManager().isUpgrade()) {
                         mBootMsgDialog.setTitle(R.string.android_upgrading_title);
                     } else {
-                        boolean mKIOSK = SystemProperties.getBoolean("persist.kiosk_mode", false);
                         if (!mKIOSK)
                             mBootMsgDialog.setTitle(R.string.android_start_title);
                     }
