@@ -246,6 +246,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.net.Uri;
+
+import android.hardware.power.Mode;
+import android.os.AsyncTask;
+
+
 /**
  * WindowManagerPolicy implementation for the Android phone UI.  This
  * introduces a new method suffix, Lp, for an internal lock of the
@@ -1019,6 +1027,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         }
     }
 
+    private static final int POWER_KEY_SUSPEND  = 0;
+    private static final int POWER_KEY_SHUTDOWN = 1;
+    private static final int POWER_KEY_RESTART = 2;
+    private static final int POWER_KEY_FORCE_SUSPEND = 3;
+
     private void powerPress(long eventTime, int count, boolean beganFromNonInteractive) {
         // SideFPS still needs to know about suppressed power buttons, in case it needs to block
         // an auth attempt.
@@ -1036,6 +1049,40 @@ public class PhoneWindowManager implements WindowManagerPolicy {
         Slog.d(TAG, "powerPress: eventTime=" + eventTime + " interactive=" + interactive
                 + " count=" + count + " beganFromNonInteractive=" + beganFromNonInteractive
                 + " mShortPressOnPowerBehavior=" + mShortPressOnPowerBehavior);
+        
+        final int definedPowerKey = SystemProperties.getInt("persist.sys.power.key.action", POWER_KEY_SUSPEND);
+        final boolean ddrWindow = SystemProperties.getBoolean("ro.first.boot.ddr.window", false);
+        Slog.d(TAG, "definedPowerKey=" + definedPowerKey + ",ddrWindow=" + ddrWindow);
+        if (definedPowerKey == POWER_KEY_SHUTDOWN || ddrWindow) {
+            Slog.i(TAG, "userrequested shutdown");
+            mPowerManager.shutdown(false, "userrequested", false);
+            return;
+        }
+        if (definedPowerKey == POWER_KEY_RESTART) {
+            Slog.i(TAG, "userspace reboot");
+            new AsyncTask<Void, Void, Void>() {
+                @Override
+                protected Void doInBackground(Void... params) {
+                    if (mSafeMode) {
+                        mPowerManager.rebootSafeMode();
+                    } else {
+                        mPowerManager.reboot(null);
+                    }
+                    return null;
+                }
+            }.execute();
+            return;
+        }
+        if (definedPowerKey == POWER_KEY_FORCE_SUSPEND) {
+            if (!beganFromNonInteractive) {
+                Slog.i(TAG, "forceSuspend");
+                mPowerManagerInternal.setPowerMode(Mode.INTERACTIVE, false);
+                mPowerManager.forceSuspend();
+            } else {
+                mPowerManagerInternal.setPowerMode(Mode.INTERACTIVE, true);
+            }
+            return;
+        }
 
         if (count == 2) {
             powerMultiPressAction(eventTime, interactive, mDoublePressOnPowerBehavior);
