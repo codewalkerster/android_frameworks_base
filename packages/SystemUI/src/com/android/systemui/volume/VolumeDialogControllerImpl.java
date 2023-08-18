@@ -465,7 +465,7 @@ public class VolumeDialogControllerImpl implements VolumeDialogController, Dumpa
     }
 
     private boolean shouldShowUI(int flags) {
-        if (mShowVolumeDialog && mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_TELEVISION)) {
+        if (mShowVolumeDialog) {
             return flags != 0 ? true : false;
         }
         // if status bar isn't null, check if phone is in AOD, else check flags

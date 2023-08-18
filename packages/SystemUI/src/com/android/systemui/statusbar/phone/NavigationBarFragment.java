@@ -63,6 +63,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.hardware.display.DisplayManager;
 import android.inputmethodservice.InputMethodService;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
@@ -523,6 +524,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
+        filter.addAction(AudioManager.ACTION_HEADSET_PLUG);
         mBroadcastDispatcher.registerReceiverWithHandler(mBroadcastReceiver, filter,
                 Handler.getMain(), UserHandle.ALL);
         notifyNavigationBarScreenOn();
@@ -1002,6 +1004,8 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         mNavigationBarView.updateNavButtonIcons();
     }
 
+    private boolean isShowVolumeButton;
+    private AudioManager mAudioManager;
     private void prepareNavigationBarView() {
         mNavigationBarView.reorient();
 
@@ -1039,7 +1043,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         ButtonDispatcher volumeSubButton=mNavigationBarView.getVolumeSubButton();
         ButtonDispatcher poweroffButtone = mNavigationBarView.getPowerOffButton();
         poweroffButtone.setOnTouchListener(this::poweroffTouch);
-        boolean isShowVolumeButton="false".equals(SystemProperties.get("persist.systembar.volume.hide","false"));
+        isShowVolumeButton = "false".equals(SystemProperties.get("persist.systembar.volume.hide","false"));
         if(isShowVolumeButton){
             volumeAddButton.setVisibility(View.VISIBLE);
             volumeSubButton.setVisibility(View.VISIBLE);
@@ -1053,6 +1057,14 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
             volumeAddButton.setVisibility(View.GONE);
             volumeSubButton.setVisibility(View.GONE);
             poweroffButtone.setVisibility(View.GONE);
+        }
+
+        if (mAudioManager == null) {
+            mAudioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        }
+        if (!mAudioManager.isWiredHeadsetOn()) {
+            volumeAddButton.setVisibility(View.GONE);
+            volumeSubButton.setVisibility(View.GONE);
         }
     }
 
@@ -1513,6 +1525,15 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
             if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                 // The accessibility settings may be different for the new user
                 updateAccessibilityServicesState(mAccessibilityManager);
+            }
+            if (AudioManager.ACTION_HEADSET_PLUG.equals(action)) {
+                if (isShowVolumeButton) {
+                    boolean connected = intent.getIntExtra("state", 0) != 0;
+                    ButtonDispatcher volumeButton = mNavigationBarView.getVolumeAddButton();
+                    volumeButton.setVisibility(connected ? View.VISIBLE : View.GONE);
+                    volumeButton=mNavigationBarView.getVolumeSubButton();
+                    volumeButton.setVisibility(connected ? View.VISIBLE : View.GONE);
+                }
             }
         }
     };
