@@ -51,6 +51,7 @@ import android.app.ActivityManager;
 import android.app.ActivityTaskManager;
 import android.app.IActivityTaskManager;
 import android.app.StatusBarManager;
+import android.bluetooth.BluetoothHeadset;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -525,6 +526,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_SWITCHED);
         filter.addAction(AudioManager.ACTION_HEADSET_PLUG);
+        filter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
         mBroadcastDispatcher.registerReceiverWithHandler(mBroadcastReceiver, filter,
                 Handler.getMain(), UserHandle.ALL);
         notifyNavigationBarScreenOn();
@@ -1526,13 +1528,23 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
                 // The accessibility settings may be different for the new user
                 updateAccessibilityServicesState(mAccessibilityManager);
             }
-            if (AudioManager.ACTION_HEADSET_PLUG.equals(action)) {
-                if (isShowVolumeButton) {
+            if (isShowVolumeButton) {
+                ButtonDispatcher volumeAddButton = mNavigationBarView.getVolumeAddButton();
+                ButtonDispatcher volumeSubButton = mNavigationBarView.getVolumeSubButton();
+                if (AudioManager.ACTION_HEADSET_PLUG.equals(action)) {
                     boolean connected = intent.getIntExtra("state", 0) != 0;
-                    ButtonDispatcher volumeButton = mNavigationBarView.getVolumeAddButton();
-                    volumeButton.setVisibility(connected ? View.VISIBLE : View.GONE);
-                    volumeButton=mNavigationBarView.getVolumeSubButton();
-                    volumeButton.setVisibility(connected ? View.VISIBLE : View.GONE);
+                    volumeAddButton.setVisibility(connected ? View.VISIBLE : View.GONE);
+                    volumeSubButton.setVisibility(connected ? View.VISIBLE : View.GONE);
+                }
+                if (BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED.equals(action)) {
+                    int state = intent.getIntExtra(BluetoothHeadset.EXTRA_STATE, BluetoothHeadset.STATE_DISCONNECTED);
+                    if (state == BluetoothHeadset.STATE_DISCONNECTED) {
+                        volumeAddButton.setVisibility(View.GONE);
+                        volumeSubButton.setVisibility(View.GONE);
+                    } else if (state == BluetoothHeadset.STATE_CONNECTED) {
+                        volumeAddButton.setVisibility(View.VISIBLE);
+                        volumeSubButton.setVisibility(View.VISIBLE);
+                    }
                 }
             }
         }
