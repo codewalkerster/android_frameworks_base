@@ -4516,6 +4516,11 @@ public class PhoneWindowManager implements WindowManagerPolicy {
                     PowerManager.WAKE_REASON_WAKE_MOTION, "android.policy:MOTION");
         }
 
+        if (!mPowerManager.isInteractive()) {
+            wakeUp(whenNanos / 1000000, mAllowTheaterModeWakeFromMotion,
+                    PowerManager.WAKE_REASON_WAKE_MOTION, "android.policy:MOTION");
+        }
+
         return 0;
     }
 
