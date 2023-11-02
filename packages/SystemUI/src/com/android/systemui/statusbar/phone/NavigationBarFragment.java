@@ -1062,7 +1062,7 @@ public class NavigationBarFragment extends LifecycleFragment implements Callback
         if (mAudioManager == null) {
             mAudioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
         }
-        if (!mAudioManager.isWiredHeadsetOn()) {
+        if (!mAudioManager.isWiredHeadsetOn() && !isShowVolumeButton) {
             volumeAddButton.setVisibility(View.GONE);
             volumeSubButton.setVisibility(View.GONE);
         }
