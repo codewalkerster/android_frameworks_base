@@ -3119,7 +3119,9 @@ public class AudioService extends IAudioService.Stub
      */
     private boolean isBox() {
         String product = SystemProperties.get("ro.target.product","");
-        if(product.equals("box") /*|| product.equals("atv")*/){
+        // ODROID has line out, so ODROID must be able to adjust the volume like a Tablet.
+        String odroid = SystemProperties.get("ro.hardware","");
+        if(product.equals("box") || odroid.equals("odroid")){
             return true;
         }
         return false;
