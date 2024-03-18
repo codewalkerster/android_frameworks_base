@@ -18,4 +18,12 @@
     <!-- The default WebView implementation -->
     <webviewprovider description="Android WebView" packageName="com.android.webview" availableByDefault="true">
     </webviewprovider>
+    <webviewprovider description="Android WebView" packageName="com.google.android.webview" availableByDefault="true">
+    </webviewprovider>
+    <webviewprovider description="Android Webview Beta" packageName="com.google.android.webview.beta" availableByDefault="true">
+    </webviewprovider>
+    <webviewprovider description="Android Webview Dev" packageName="com.google.android.webview.dev" availableByDefault="true">
+    </webviewprovider>
+    <webviewprovider description="Android Webview Canary" packageName="com.google.android.webview.canary" availableByDefault="true">
+    </webviewprovider>
 </webviewproviders>
