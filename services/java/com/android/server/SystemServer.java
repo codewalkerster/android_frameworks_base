@@ -1640,6 +1640,8 @@ public final class SystemServer implements Dumpable {
             } else if (!context.getPackageManager().hasSystemFeature
                     (PackageManager.FEATURE_BLUETOOTH)) {
                 Slog.i(TAG, "No Bluetooth Service (Bluetooth Hardware Not Present)");
+            } else if (SystemProperties.getBoolean("persist.bt.service.down", false)) {
+                Slog.i(TAG, "No Bluetooth Service (Disable Bluetooth Service)");
             } else {
                 t.traceBegin("StartBluetoothService");
                 mSystemServiceManager.startServiceFromJar(BLUETOOTH_SERVICE_CLASS,
