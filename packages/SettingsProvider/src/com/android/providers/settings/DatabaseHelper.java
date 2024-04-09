@@ -2582,6 +2582,7 @@ class DatabaseHelper extends SQLiteOpenHelper {
                 defaultLidBehavior = 0;
             }
             loadSetting(stmt, Settings.Global.LID_BEHAVIOR, defaultLidBehavior);
+            loadIntegerSetting(stmt, "hdmi_control_volume_control_enabled", R.integer.def_volume_control);
 
             /*
              * IMPORTANT: Do not add any more upgrade steps here as the global,
