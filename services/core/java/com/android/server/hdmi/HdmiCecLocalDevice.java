@@ -223,13 +223,30 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
     }
 
     /** Called once a logical address of the local device is allocated. */
-    protected abstract void onAddressAllocated(int logicalAddress, int reason);
+    protected void onAddressAllocated(int logicalAddress, int reason) {
+        HdmiLogger.debug("onAddressAllocated address:%x reason:%d", logicalAddress, reason);
+    }
+
+    protected void onSetupFinished() {
+
+    }
+
+    @ServiceThreadOnly
+    boolean getAutoWakeup() {
+        assertRunOnServiceThread();
+        return mService.getHdmiCecConfig().getIntValue(
+                  HdmiControlManager.CEC_SETTING_NAME_TV_WAKE_ON_ONE_TOUCH_PLAY)
+                    == HdmiControlManager.TV_WAKE_ON_ONE_TOUCH_PLAY_ENABLED;
+    }
 
     /** Get the preferred logical address from system properties. */
     protected abstract int getPreferredAddress();
 
     /** Set the preferred logical address to system properties. */
     protected abstract void setPreferredAddress(int addr);
+
+    void bootComplete() {
+    }
 
     /**
      * Returns true if the TV input associated with the CEC device is ready to accept further
@@ -566,7 +583,9 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
 
         HdmiDeviceInfo cecDeviceInfo = mService.getHdmiCecNetwork().getCecDeviceInfo(address);
         // If no non-default display name is available for the device, request the devices OSD name.
-        if (cecDeviceInfo != null && cecDeviceInfo.getDisplayName().equals(
+        // On TV devices, the OSD name is queried in NewDeviceAction instead.
+        if (!mService.isTvDevice() && cecDeviceInfo != null
+                && cecDeviceInfo.getDisplayName().equals(
                 HdmiUtils.getDefaultDeviceName(address))) {
             mService.sendCecCommand(
                     HdmiCecMessageBuilder.buildGiveOsdNameCommand(
@@ -733,6 +752,12 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         if (mService.isCecControlEnabled()
                 && !mService.isProhibitMode()
                 && mService.isPowerOnOrTransient()) {
+            if (mService.isSupendedByAutoDeviceOff()
+                && !getAutoWakeup()) {
+                HdmiLogger.debug("Power control mode is NONE and cancel cec standby");
+                // If CEC_SETTING_NAME_POWER_CONTROL_MODE is NONE, just return.
+                return Constants.ABORT_NOT_IN_CORRECT_MODE;
+            }
             mService.standby();
             return Constants.HANDLED;
         }
@@ -748,6 +773,16 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
             mService.standby();
             return Constants.HANDLED;
         } else if (mService.isPowerStandbyOrTransient() && isPowerOnOrToggleCommand(message)) {
+            if (mService.isPlaybackDevice()) {
+                // Trigger one touch play for compatible concern due to tvs like samsung may
+                // lose the focal device and no more send user control events.
+                mService.oneTouchPlay(new IHdmiControlCallback.Stub() {
+                    @Override
+                    public void onComplete(int result) {
+                        HdmiLogger.info("One touch play for Tv's Power key ends with result=" + result);
+                    }
+                });
+            }
             mService.wakeUp();
             return Constants.HANDLED;
         } else if (mService.getHdmiCecVolumeControl()
@@ -989,6 +1024,7 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         return mDeviceType;
     }
 
+    @GuardedBy("mLock")
     HdmiDeviceInfo getDeviceInfo() {
         synchronized (mLock) {
             return mDeviceInfo;
@@ -1014,12 +1050,12 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         mActions.add(action);
         if (mService.isPowerStandby() || !mService.isAddressAllocated()) {
             if (action.getClass() == ResendCecCommandAction.class) {
-                Slog.i(TAG, "Not ready to start ResendCecCommandAction. "
+                HdmiLogger.info("Not ready to start ResendCecCommandAction. "
                         + "This action is cancelled.");
                 removeAction(action);
                 return;
             }
-            Slog.i(TAG, "Not ready to start action. Queued for deferred start:" + action);
+            HdmiLogger.info("Not ready to start action. Queued for deferred start:" + action);
             return;
         }
         action.start();
@@ -1117,6 +1153,7 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
     }
 
     // Returns all actions matched with given class type.
+    @VisibleForTesting
     @ServiceThreadOnly
     <T extends HdmiCecFeatureAction> List<T> getActions(final Class<T> clazz) {
         assertRunOnServiceThread();
@@ -1142,7 +1179,7 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         assertRunOnServiceThread();
         action.finish(false);
         mActions.remove(action);
-        checkIfPendingActionsCleared();
+        //checkIfPendingActionsCleared();
     }
 
     // Remove all actions matched with the given Class type.
@@ -1175,10 +1212,13 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
                 iter.remove();
             }
         }
-        checkIfPendingActionsCleared();
+        //checkIfPendingActionsCleared();
     }
 
     protected void checkIfPendingActionsCleared() {
+        for (HdmiCecFeatureAction action : mActions) {
+            HdmiLogger.debug("Not finished action: " + action.getClass().getSimpleName());
+        }
         if (mActions.isEmpty() && mPendingActionClearedCallback != null) {
             PendingActionClearedCallback callback = mPendingActionClearedCallback;
             // To prevent from calling the callback again during handling the callback itself.
@@ -1235,6 +1275,7 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
     }
 
     void setActivePath(int path) {
+        HdmiLogger.debug("setActivePath path:pa:0x%04x", path);
         synchronized (mLock) {
             mActiveRoutingPath = path;
         }
@@ -1311,7 +1352,6 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
      */
     protected void disableDevice(
             boolean initiatedByCec, final PendingActionClearedCallback originalCallback) {
-        removeAction(AbsoluteVolumeAudioStatusAction.class);
         removeAction(SetAudioVolumeLevelDiscoveryAction.class);
         removeAction(ActiveSourceAction.class);
         removeAction(ResendCecCommandAction.class);
@@ -1362,11 +1402,11 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         }
         List<SendKeyAction> action = getActions(SendKeyAction.class);
         int logicalAddress = findKeyReceiverAddress();
+        HdmiLogger.debug("sendKeyEvent to device %x " + isPressed, logicalAddress);
         if (logicalAddress == Constants.ADDR_INVALID
                 || logicalAddress == mDeviceInfo.getLogicalAddress()) {
             // Don't send key event to invalid device or itself.
-            Slog.w(
-                    TAG,
+            HdmiLogger.warning(
                     "Discard key event: "
                             + keyCode
                             + ", pressed:"
@@ -1401,12 +1441,12 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         }
         List<SendKeyAction> action = getActions(SendKeyAction.class);
         int logicalAddress = findAudioReceiverAddress();
+        HdmiLogger.debug("sendVolumeKeyEvent to device %x pressed:%b", logicalAddress, isPressed);
         if (logicalAddress == Constants.ADDR_INVALID
                 || mService.getAllCecLocalDevices().stream().anyMatch(
                         device -> device.getDeviceInfo().getLogicalAddress() == logicalAddress)) {
             // Don't send key event to invalid device or itself.
-            Slog.w(
-                    TAG,
+            HdmiLogger.warning(
                     "Discard volume key event: "
                             + keyCode
                             + ", pressed:"
@@ -1476,6 +1516,9 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
 
     void addActiveSourceHistoryItem(ActiveSource activeSource, boolean isActiveSource,
             String caller) {
+        HdmiLogger.debug("ActiveSourceHistoryRecord active source=" + activeSource
+                        + " isActiveSource=" + isActiveSource
+                        + " from=" + caller);
         ActiveSourceHistoryRecord record = new ActiveSourceHistoryRecord(activeSource,
                 isActiveSource, caller);
         if (!mActiveSourceHistory.offer(record)) {
@@ -1495,6 +1538,9 @@ abstract class HdmiCecLocalDevice extends HdmiLocalDevice {
         pw.println("mDeviceInfo: " + mDeviceInfo);
         pw.println("mActiveSource: " + getActiveSource());
         pw.println(String.format("mActiveRoutingPath: 0x%04x", mActiveRoutingPath));
+        for (HdmiCecFeatureAction action : mActions) {
+            pw.println("action: " + action);
+        }
     }
 
     /** Calculates the physical address for {@code activePortId}.

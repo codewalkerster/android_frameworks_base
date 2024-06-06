@@ -64,6 +64,8 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     // Handler for queueing a delayed Standby runnable after hotplug out.
     private Handler mDelayedStandbyHandler;
 
+    private Locale mBootLocale;
+
     // Determines what action should be taken upon receiving Routing Control messages.
     @VisibleForTesting
     protected HdmiProperties.playback_device_action_on_routing_control_values
@@ -82,6 +84,12 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     @ServiceThreadOnly
     protected void onAddressAllocated(int logicalAddress, int reason) {
         assertRunOnServiceThread();
+        super.onAddressAllocated(logicalAddress, reason);
+        if (mService.QUIESCENT && (reason == mService.INITIATED_BY_BOOT_UP)) {
+            HdmiLogger.warning("No more initiate for playback in quiescent boot.");
+            return;
+        }
+
         if (reason == mService.INITIATED_BY_ENABLE_CEC) {
             mService.setAndBroadcastActiveSource(mService.getPhysicalAddress(),
                     getDeviceInfo().getDeviceType(), Constants.ADDR_BROADCAST,
@@ -95,6 +103,14 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
         mService.sendCecCommand(
                 HdmiCecMessageBuilder.buildDeviceVendorIdCommand(
                         getDeviceInfo().getLogicalAddress(), mService.getVendorId()));
+        // Ask tv to broadcast its vendor id so that we could make specific compat solution work.
+        mService.sendCecCommand(HdmiCecMessageBuilder.buildGiveDeviceVendorIdCommand(
+                getDeviceInfo().getLogicalAddress(), Constants.ADDR_TV));
+        if (mService.isAutoChangeLanguageEnabled()) {
+            // If the device supports set menu language, then ask tv to provide its language.
+            mService.sendCecCommand(HdmiCecMessageBuilder.buildGetMenuLanguageCommand(
+                getDeviceInfo().getLogicalAddress(), Constants.ADDR_TV));
+        }
         // Actively send out an OSD name to the TV to update the TV panel in case the TV
         // does not query the OSD name on time. This is not a required behavior by the spec.
         // It is used for some TVs that need the OSD name update but don't query it themselves.
@@ -126,6 +142,10 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     private void launchDeviceDiscovery() {
         assertRunOnServiceThread();
         clearDeviceInfoList();
+        if (hasAction(DeviceDiscoveryAction.class)) {
+            Slog.i(TAG, "Device Discovery Action is in progress. Restarting.");
+            removeAction(DeviceDiscoveryAction.class);
+        }
         DeviceDiscoveryAction action = new DeviceDiscoveryAction(this,
                 new DeviceDiscoveryAction.DeviceDiscoveryCallback() {
                     @Override
@@ -207,14 +227,17 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
 
         if (connected) {
             mDelayedStandbyHandler.removeCallbacksAndMessages(null);
-        } else {
+        } else if (!connected && !mService.isAudioSystemDevice()) {
             // We'll not invalidate the active source on the hotplug event to pass CETC 11.2.2-2 ~ 3
             getWakeLock().release();
             mService.getHdmiCecNetwork().removeDevicesConnectedToPort(portId);
 
-            mDelayedStandbyHandler.removeCallbacksAndMessages(null);
-            mDelayedStandbyHandler.postDelayed(new DelayedStandbyRunnable(),
-                    STANDBY_AFTER_HOTPLUG_OUT_DELAY_MS);
+            if (mService.readBooleanSystemProperty(Constants.PROPERTY_HOTPLUG_SLEEP, false)) {
+                HdmiLogger.debug("Start delayed standby runnable in 30s.");
+                mDelayedStandbyHandler.removeCallbacksAndMessages(null);
+                mDelayedStandbyHandler.postDelayed(new DelayedStandbyRunnable(),
+                        STANDBY_AFTER_HOTPLUG_OUT_DELAY_MS);
+            }
         }
     }
 
@@ -241,14 +264,21 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
             StandbyCompletedCallback callback) {
         assertRunOnServiceThread();
         if (!mService.isCecControlEnabled()) {
+            HdmiLogger.warning("onStandby but hdmi disabled!");
             invokeStandbyCompletedCallback(callback);
             return;
         }
         boolean wasActiveSource = isActiveSource();
-        // Invalidate the internal active source record when going to standby
-        mService.setActiveSource(Constants.ADDR_INVALID, Constants.INVALID_PHYSICAL_ADDRESS,
-                "HdmiCecLocalDevicePlayback#onStandby()");
-        if (!wasActiveSource) {
+        if (!mService.isAudioSystemDevice()) {
+            // Invalidate the internal active source record when going to standby
+            mService.setActiveSource(Constants.ADDR_INVALID, Constants.INVALID_PHYSICAL_ADDRESS,
+                    "HdmiCecLocalDevicePlayback#onStandby()");
+        }
+        boolean sendStandbyNoneActive = mService.isSendStandbyNoneActive();
+        HdmiLogger.debug("onStandby sendStandbyNoneActive:%b, wasActiveSource:%b",
+                sendStandbyNoneActive, wasActiveSource);
+
+        if (!wasActiveSource && !sendStandbyNoneActive) {
             invokeStandbyCompletedCallback(callback);
             return;
         }
@@ -259,6 +289,15 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
             }
         };
         if (initiatedByCec) {
+            // Sony and some other TVs may switch other channels when it receives
+            // <Inactive Source> message, and it could be considerred an issue for customers.
+            boolean sendInactiveSource = mService.isSendInactiveSource();
+            HdmiLogger.debug("onStandby sendStandbyNoneActive:%b, wasActiveSource:%b",
+                    sendStandbyNoneActive, wasActiveSource);
+
+            if (!sendInactiveSource) {
+                return;
+            }
             mService.sendCecCommand(
                     HdmiCecMessageBuilder.buildInactiveSource(
                             getDeviceInfo().getLogicalAddress(), mService.getPhysicalAddress()),
@@ -316,6 +355,15 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     protected void onInitializeCecComplete(int initiatedBy) {
         if (initiatedBy != HdmiControlService.INITIATED_BY_SCREEN_ON) {
             return;
+        }
+        if (mService.isAudioSystemDevice()) {
+            // Constrain one touch play for an soundbar in wakeup case.
+            int port = SystemProperties.getInt(Constants.PROPERTY_ROUTE_ACTIVE_PORT,
+                            mLocalActivePort);
+            HdmiLogger.debug("Try to do one touch play with soundbar active port:" + port);
+            if (port != Constants.CEC_SWITCH_HOME) {
+                return;
+            }
         }
         @HdmiControlManager.PowerControlMode
         String powerControlMode = mService.getHdmiCecConfig().getStringValue(
@@ -380,8 +428,14 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     protected void onActiveSourceLost() {
         assertRunOnServiceThread();
         mService.pauseActiveMediaSessions();
-        switch (mService.getHdmiCecConfig().getStringValue(
-                    HdmiControlManager.CEC_SETTING_NAME_POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST)) {
+        if (mService.isAudioSystemDevice()) {
+            // Don't do this for soundbar product.
+            return;
+        }
+        String mode = mService.getHdmiCecConfig().getStringValue(
+                HdmiControlManager.CEC_SETTING_NAME_POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST);
+        HdmiLogger.debug("onActiveSourceLost with mode:" + mode);
+        switch (mode) {
             case HdmiControlManager.POWER_STATE_CHANGE_ON_ACTIVE_SOURCE_LOST_STANDBY_NOW:
                 mService.standby();
                 return;
@@ -402,9 +456,8 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     @Constants.HandleMessageResult
     protected int handleSetMenuLanguage(HdmiCecMessage message) {
         assertRunOnServiceThread();
-        if (mService.getHdmiCecConfig().getIntValue(
-                HdmiControlManager.CEC_SETTING_NAME_SET_MENU_LANGUAGE)
-                    == HdmiControlManager.SET_MENU_LANGUAGE_DISABLED) {
+        if (!mService.isAutoChangeLanguageEnabled()) {
+            HdmiLogger.warning("handleSetMenuLanguage switch is not enabled!");
             return Constants.ABORT_UNRECOGNIZED_OPCODE;
         }
 
@@ -426,6 +479,11 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
                     mService.getContext(), false);
             for (LocaleInfo localeInfo : localeInfos) {
                 if (mService.localeToMenuLanguage(localeInfo.getLocale()).equals(iso3Language)) {
+                    if (!mService.isSetupFinished()) {
+                        mBootLocale = localeInfo.getLocale();
+                        HdmiLogger.warning("handleSetMenuLanguage but setup not finished yet");
+                        return Constants.HANDLED;
+                    }
                     // WARNING: CEC adopts ISO/FDIS-2 for language code, while Android requires
                     // additional country variant to pinpoint the locale. This keeps the right
                     // locale from being chosen. 'eng' in the CEC command, for instance,
@@ -440,6 +498,13 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
         } catch (UnsupportedEncodingException e) {
             Slog.w(TAG, "Can't handle <Set Menu Language>", e);
             return Constants.ABORT_INVALID_OPERAND;
+        }
+    }
+
+    protected void onSetupFinished() {
+        if (mBootLocale != null) {
+            HdmiLogger.debug("onSetupFinished start delayed boot language change action.");
+            startSetMenuLanguageActivity(mBootLocale);
         }
     }
 
@@ -591,9 +656,7 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     @ServiceThreadOnly
     protected void disableDevice(boolean initiatedByCec, PendingActionClearedCallback callback) {
         assertRunOnServiceThread();
-        removeAction(DeviceDiscoveryAction.class);
-        removeAction(HotplugDetectionAction.class);
-        removeAction(NewDeviceAction.class);
+        removeAllActions();
         super.disableDevice(initiatedByCec, callback);
         clearDeviceInfoList();
         checkIfPendingActionsCleared();

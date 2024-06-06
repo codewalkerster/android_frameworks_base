@@ -54,6 +54,9 @@ final class CecMessageBuffer {
             case Constants.MESSAGE_SET_STREAM_PATH:
                 bufferSetStreamPath(message);
                 return true;
+            case Constants.MESSAGE_REQUEST_SHORT_AUDIO_DESCRIPTOR:
+                bufferRequestShortAudioDesCriptor(message);
+                return true;
             // Add here if new message that needs to buffer
             default:
                 // Do not need to buffer messages other than above
@@ -90,7 +93,10 @@ final class CecMessageBuffer {
     }
 
     private void bufferSystemAudioModeRequest(HdmiCecMessage message) {
-        if (!replaceMessageIfBuffered(message, Constants.MESSAGE_SYSTEM_AUDIO_MODE_REQUEST)) {
+        boolean systemAudioStatusOn = message.getParams().length != 0;
+        if (!replaceMessageIfBuffered(message, Constants.MESSAGE_SYSTEM_AUDIO_MODE_REQUEST)
+            // only buffer ON message.
+            && systemAudioStatusOn) {
             mBuffer.add(message);
         }
     }
@@ -107,8 +113,22 @@ final class CecMessageBuffer {
         }
     }
 
+    private void bufferRequestShortAudioDesCriptor(HdmiCecMessage message) {
+        mBuffer.add(message);
+    }
+
     public List<HdmiCecMessage> getBuffer() {
         return new ArrayList<>(mBuffer);
+    }
+
+    public boolean isBuffered(int opcode) {
+        List<HdmiCecMessage> list = new ArrayList<>(mBuffer);
+        for (HdmiCecMessage message: list) {
+            if (message.getOpcode() == opcode) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Returns true if the message is replaced

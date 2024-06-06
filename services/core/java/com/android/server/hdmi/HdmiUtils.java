@@ -113,6 +113,16 @@ final class HdmiUtils {
 
     private HdmiUtils() { /* cannot be instantiated */ }
 
+    static boolean isPowerStandbyOrTransient(int powerStatus) {
+        return powerStatus == HdmiControlManager.POWER_STATUS_STANDBY
+                || powerStatus == HdmiControlManager.POWER_STATUS_TRANSIENT_TO_STANDBY;
+    }
+
+    static boolean isPowerOnOrTransient(int powerStatus) {
+        return powerStatus == HdmiControlManager.POWER_STATUS_ON
+                || powerStatus == HdmiControlManager.POWER_STATUS_TRANSIENT_TO_ON;
+    }
+
     /**
      * Check if the given logical address is valid. A logical address is valid
      * if it is one allocated for an actual device which allows communication
@@ -574,6 +584,17 @@ final class HdmiUtils {
         return offset;
     }
 
+    /**
+     *  Parse the sad config xml
+     *  A sample of HDMI ARC IN AUDIO CONFIG.
+     *  <config version="1.0" xmlns:xi="http://www.w3.org/2001/XMLSchema">
+            <device type="VX_AUDIO_DEVICE_IN_HDMI_ARC">
+                <supportedFormat format="AUDIO_FORMAT_LPCM" descriptor="097F05"/>
+                <supportedFormat format="AUDIO_FORMAT_DD" descriptor="150750"/>
+                <supportedFormat format="AUDIO_FORMAT_DDP" descriptor="570701"/>
+            </device>
+        </config>
+     */
     public static class ShortAudioDescriptorXmlParser {
         // We don't use namespaces
         private static final String NS = null;
