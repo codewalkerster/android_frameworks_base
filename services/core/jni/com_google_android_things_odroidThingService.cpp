@@ -23,7 +23,7 @@
 #include <hardware/hardware.h>
 
 #include <utils/Log.h>
-#include "core_jni_helpers.h"
+#include <core_jni_helpers.h>
 
 #include <vector>
 #include <map>
@@ -80,9 +80,9 @@ static void init(JNIEnv *env, jobject obj) {
 
 static jobject getPinName(JNIEnv *env, jobject obj) {
 
-    jclass clsArrayList = env->FindClass("java/util/ArrayList");
-    jmethodID mCreator = env->GetMethodID(clsArrayList, "<init>", "()V");
-    jmethodID mAdd = env->GetMethodID(clsArrayList, "add", "(Ljava/lang/Object;)Z");
+    jclass clsArrayList = FindClassOrDie(env, "java/util/ArrayList");
+    jmethodID mCreator = GetMethodIDOrDie(env, clsArrayList, "<init>", "()V");
+    jmethodID mAdd = GetMethodIDOrDie(env, clsArrayList, "add", "(Ljava/lang/Object;)Z");
     jobject resultArray = env->NewObject(clsArrayList, mCreator);
 
     sp<IOdroidThings> hal = OdroidThingHal::associate();
@@ -103,9 +103,9 @@ static jobject getPinName(JNIEnv *env, jobject obj) {
 
 static jobject getListOf(JNIEnv *env, jobject obj, jint mode) {
 
-    jclass clsArrayList = env->FindClass("java/util/ArrayList");
-    jmethodID mCreator = env->GetMethodID(clsArrayList, "<init>", "()V");
-    jmethodID mAdd = env->GetMethodID(clsArrayList, "add", "(Ljava/lang/Object;)Z");
+    jclass clsArrayList = FindClassOrDie(env, "java/util/ArrayList");
+    jmethodID mCreator = GetMethodIDOrDie(env, clsArrayList, "<init>", "()V");
+    jmethodID mAdd = GetMethodIDOrDie(env, clsArrayList, "add", "(Ljava/lang/Object;)Z");
     jobject resultArray = env->NewObject(clsArrayList, mCreator);
 
     sp<IOdroidThings> hal = OdroidThingHal::associate();
@@ -189,14 +189,14 @@ Callback::Callback(JNIEnv *env, int pin) {
     this->env = env;
     this->pin = pin;
     env->GetJavaVM(&jvm);
-    jclass localClass = (*env).FindClass("com/google/android/things/odroid/OdroidThingsManager");
-    thingsManagerClass = (jclass) (*env).NewGlobalRef(localClass);
-    cb = (*env).GetStaticMethodID(thingsManagerClass, "doCallback", "(I)V");
+    jclass localClass = FindClassOrDie(env, "com/google/android/things/odroid/OdroidThingsManager");
+    thingsManagerClass = MakeGlobalRefOrDie(env, localClass);
+    cb = GetStaticMethodIDOrDie(env, thingsManagerClass, "doCallback", "(I)V");
 }
 
 Return<void> Callback::doCallback() {
-    (*jvm).AttachCurrentThread(&env, NULL);
-    (*env).CallStaticVoidMethod(thingsManagerClass, cb, pin);
+    jvm->AttachCurrentThread(&env, NULL);
+    env->CallStaticVoidMethod(thingsManagerClass, cb, pin);
 
     return Void();
 }
@@ -512,14 +512,14 @@ UartCallback::UartCallback(JNIEnv *env, int idx) {
     this->env = env;
     this->idx= idx;
     env->GetJavaVM(&jvm);
-    jclass localClass = (*env).FindClass("com/google/android/things/odroid/OdroidThingsManager");
-    thingsManagerClass = (jclass) (*env).NewGlobalRef(localClass);
-    cb = (*env).GetStaticMethodID(thingsManagerClass, "doUartCallback", "(I)V");
+    jclass localClass = FindClassOrDie(env, "com/google/android/things/odroid/OdroidThingsManager");
+    thingsManagerClass = MakeGlobalRefOrDie(env, localClass);
+    cb = GetStaticMethodIDOrDie(env, thingsManagerClass, "doUartCallback", "(I)V");
 }
 
 Return<void> UartCallback::doCallback() {
-    (*jvm).AttachCurrentThread(&env, NULL);
-    (*env).CallStaticVoidMethod(thingsManagerClass, cb, idx);
+    jvm->AttachCurrentThread(&env, NULL);
+    env->CallStaticVoidMethod(thingsManagerClass, cb, idx);
 
     return Void();
 }
