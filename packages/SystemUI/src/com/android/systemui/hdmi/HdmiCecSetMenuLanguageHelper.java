@@ -95,4 +95,10 @@ public class HdmiCecSetMenuLanguageHelper {
         mSecureSettings.putStringForUser(Settings.Secure.HDMI_CEC_SET_MENU_LANGUAGE_DENYLIST,
                 String.join(SEPARATOR, mDenylist), UserHandle.USER_CURRENT);
     }
+
+    public void clearDeniedLocale() {
+        mDenylist.clear();
+        mSecureSettings.putStringForUser(Settings.Secure.HDMI_CEC_SET_MENU_LANGUAGE_DENYLIST,
+                String.join(SEPARATOR, mDenylist), UserHandle.USER_CURRENT);
+    }
 }

@@ -18,6 +18,8 @@ package com.android.systemui.hdmi;
 
 import android.hardware.hdmi.HdmiControlManager;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -36,6 +38,9 @@ public class HdmiCecSetMenuLanguageActivity extends TvBottomSheetActivity
         implements View.OnClickListener {
     private static final String TAG = HdmiCecSetMenuLanguageActivity.class.getSimpleName();
 
+    private static final String AUTO_LANGUAGE_CHANGE = "hdmi_control_auto_language_change_enabled";
+    private static final int ENABLED = 1;
+
     private final HdmiCecSetMenuLanguageHelper mHdmiCecSetMenuLanguageHelper;
 
     @Inject
@@ -51,7 +56,15 @@ public class HdmiCecSetMenuLanguageActivity extends TvBottomSheetActivity
                 WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS);
         String languageTag = getIntent().getStringExtra(HdmiControlManager.EXTRA_LOCALE);
         mHdmiCecSetMenuLanguageHelper.setLocale(languageTag);
-        if (mHdmiCecSetMenuLanguageHelper.isLocaleDenylisted()) {
+        boolean enabled = Settings.Global.getInt(getContentResolver(),
+                AUTO_LANGUAGE_CHANGE, ENABLED) == ENABLED;
+        Log.d(TAG, "Auto change language enabled:" + enabled);
+        if (enabled) {
+            mHdmiCecSetMenuLanguageHelper.clearDeniedLocale();
+            mHdmiCecSetMenuLanguageHelper.acceptLocale();
+            finish();
+        } else {
+            mHdmiCecSetMenuLanguageHelper.declineLocale();
             finish();
         }
     }
