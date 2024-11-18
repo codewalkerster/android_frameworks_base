@@ -205,9 +205,12 @@ final class NewDeviceAction extends HdmiCecFeatureAction {
         if (state == STATE_WAITING_FOR_SET_OSD_NAME) {
             if (++mTimeoutRetry < HdmiConfig.TIMEOUT_RETRY) {
                 requestOsdName(false);
-                // Any exception hasppens, just finish the action first.
-                addDeviceInfo();
-                finish();
+                if (mTimeoutRetry == 2) {
+                    // Any exception hasppens, just finish the action first.
+                    addDeviceInfo();
+                    finish();
+                    return;
+                }
                 return;
             }
             // Osd name request timed out. Try vendor id

@@ -239,6 +239,13 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
                         STANDBY_AFTER_HOTPLUG_OUT_DELAY_MS);
             }
         }
+
+        if (portId != 0) {
+            List<HotplugDetectionAction> hotplugActions = getActions(HotplugDetectionAction.class);
+            if (!hotplugActions.isEmpty()) {
+                hotplugActions.get(0).pollAllDevicesNow();
+            }
+        }
     }
 
     /**
@@ -269,7 +276,7 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
             return;
         }
         boolean wasActiveSource = isActiveSource();
-        if (!mService.isAudioSystemDevice()) {
+        if (!mService.isAudioSystemDevice() && mService.isOneTouchPlayEnabled()) {
             // Invalidate the internal active source record when going to standby
             mService.setActiveSource(Constants.ADDR_INVALID, Constants.INVALID_PHYSICAL_ADDRESS,
                     "HdmiCecLocalDevicePlayback#onStandby()");
@@ -296,6 +303,7 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
                     sendStandbyNoneActive, wasActiveSource);
 
             if (!sendInactiveSource) {
+                invokeStandbyCompletedCallback(callback);
                 return;
             }
             mService.sendCecCommand(
@@ -304,12 +312,20 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
                     sendMessageCallback);
             return;
         }
+
+        if (!mService.isAutoDeviceOffEnabled()) {
+            HdmiLogger.debug("Auto device off switch is enabled");
+            invokeStandbyCompletedCallback(callback);
+            return;
+        }
+
+        // Get latest setting value
+        @HdmiControlManager.PowerControlMode
+        String powerControlMode = mService.getHdmiCecConfig().getStringValue(
+                HdmiControlManager.CEC_SETTING_NAME_POWER_CONTROL_MODE);
+        HdmiLogger.debug("onStandby powerControlMode:" + powerControlMode);
         switch (standbyAction) {
             case HdmiControlService.STANDBY_SCREEN_OFF:
-                // Get latest setting value
-                @HdmiControlManager.PowerControlMode
-                String powerControlMode = mService.getHdmiCecConfig().getStringValue(
-                        HdmiControlManager.CEC_SETTING_NAME_POWER_CONTROL_MODE);
                 switch (powerControlMode) {
                     case HdmiControlManager.POWER_CONTROL_MODE_TV:
                         mService.sendCecCommand(
@@ -341,11 +357,13 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
                 }
                 break;
             case HdmiControlService.STANDBY_SHUTDOWN:
-                // ACTION_SHUTDOWN is taken as a signal to power off all the devices.
-                mService.sendCecCommand(
-                        HdmiCecMessageBuilder.buildStandby(
-                                getDeviceInfo().getLogicalAddress(), Constants.ADDR_BROADCAST),
-                        sendMessageCallback);
+                if (!HdmiControlManager.POWER_CONTROL_MODE_NONE.equals(powerControlMode)) {
+                    // ACTION_SHUTDOWN is taken as a signal to power off all the devices.
+                    mService.sendCecCommand(
+                            HdmiCecMessageBuilder.buildStandby(
+                                    getDeviceInfo().getLogicalAddress(), Constants.ADDR_BROADCAST),
+                            sendMessageCallback);
+                }
                 break;
         }
     }
@@ -369,6 +387,8 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
         String powerControlMode = mService.getHdmiCecConfig().getStringValue(
                 HdmiControlManager.CEC_SETTING_NAME_POWER_CONTROL_MODE);
         if (powerControlMode.equals(HdmiControlManager.POWER_CONTROL_MODE_NONE)) {
+            // power control mode controls both one touch play and standby and customers
+            // may still like separate control switch.
             return;
         }
         oneTouchPlay(new IHdmiControlCallback.Stub() {
@@ -575,6 +595,18 @@ public class HdmiCecLocalDevicePlayback extends HdmiCecLocalDeviceSource {
     protected int handleRoutingInformation(HdmiCecMessage message) {
         assertRunOnServiceThread();
         int physicalAddress = HdmiUtils.twoBytesToInt(message.getParams());
+        HdmiDeviceInfo sourceDevice = mService.getHdmiCecNetwork()
+                .getCecDeviceInfo(message.getSource());
+        // Ignore <Routing Information> messages pointing to the same physical address as the
+        // message sender. In this case, we shouldn't consider the sender to be the active source.
+        // See more b/321771821#comment7.
+        if (sourceDevice != null
+                && sourceDevice.getLogicalAddress() != Constants.ADDR_TV
+                && sourceDevice.getPhysicalAddress() == physicalAddress) {
+            Slog.d(TAG, "<Routing Information> is ignored, it is pointing to the same physical"
+                    + " address as the message sender");
+            return Constants.HANDLED;
+        }
         handleRoutingChangeAndInformation(physicalAddress, message);
         return Constants.HANDLED;
     }

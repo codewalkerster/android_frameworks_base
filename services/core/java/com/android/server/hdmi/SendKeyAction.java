@@ -58,6 +58,10 @@ final class SendKeyAction extends HdmiCecFeatureAction {
     // the last key is processed.
     private static final int STATE_PROCESSING_KEYCODE = 2;
 
+    // Delay to query avr's audio status, some avrs could report the old volume first. It could
+    // show inverse mute state on TV.
+    private static final long DELAY_GIVE_AUDIO_STATUS = 500;
+
     // Logical address of the device to which the UCP/UCP commands are sent.
     private final int mTargetAddress;
 
@@ -158,9 +162,11 @@ final class SendKeyAction extends HdmiCecFeatureAction {
                 mTargetAddress, cecKeycodeAndParams), new SendMessageCallback() {
                 @Override
                 public void onSendCompleted(int error) {
-                    if (error != SendMessageResult.SUCCESS) {
+                    // Disable System Audio Mode, if the AVR doesn't acknowledge
+                    // a <User Control Pressed> message.
+                    if (error == SendMessageResult.NACK) {
                         HdmiLogger.debug(
-                            "AVR did not respond to <User Control Pressed>");
+                            "AVR did not acknowledge <User Control Pressed>");
                         localDevice().mService.setSystemAudioActivated(false);
                     }
                 }
@@ -178,13 +184,20 @@ final class SendKeyAction extends HdmiCecFeatureAction {
                 && localDevice().getService().isAbsoluteVolumeBehaviorEnabled()) {
             sendCommand(HdmiCecMessageBuilder.buildUserControlReleased(getSourceAddress(),
                     mTargetAddress),
-                    __ -> sendCommand(HdmiCecMessageBuilder.buildGiveAudioStatus(
-                            getSourceAddress(),
-                            localDevice().findAudioReceiverAddress())));
+                    __ -> queryAvrAudioStatus());
         } else {
             sendCommand(HdmiCecMessageBuilder.buildUserControlReleased(getSourceAddress(),
                     mTargetAddress));
         }
+    }
+
+    private void queryAvrAudioStatus() {
+        localDevice().mService.runOnServiceThreadDelayed(
+            () -> sendCommand(HdmiCecMessageBuilder.buildGiveAudioStatus(
+                            getSourceAddress(),
+                            localDevice().findAudioReceiverAddress())),
+                            DELAY_GIVE_AUDIO_STATUS);
+
     }
 
     @Override

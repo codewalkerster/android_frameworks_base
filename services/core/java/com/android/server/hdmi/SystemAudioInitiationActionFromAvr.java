@@ -77,6 +77,14 @@ public class SystemAudioInitiationActionFromAvr extends HdmiCecFeatureAction {
                 mState = STATE_WAITING_FOR_TV_SUPPORT;
                 queryTvSystemAudioModeSupport();
                 return true;
+            case Constants.MESSAGE_FEATURE_ABORT:
+                if (HdmiUtils.getAbortFeatureOpcode(cmd) == Constants.MESSAGE_SET_SYSTEM_AUDIO_MODE) {
+                    audioSystem().checkSupportAndSetSystemAudioMode(false);
+                    finish();
+                    HdmiLogger.debug("Abort broadcast <Set System Audio Mode> and close it");
+                    return true;
+                }
+                break;
         }
         return false;
     }
@@ -90,6 +98,11 @@ public class SystemAudioInitiationActionFromAvr extends HdmiCecFeatureAction {
         switch (mState) {
             case STATE_WAITING_FOR_ACTIVE_SOURCE:
                 handleActiveSourceTimeout();
+                break;
+            case STATE_WAITING_FOR_TV_SUPPORT:
+                HdmiLogger.debug("Broadcast <Set System Audio Mode>");
+                sendSetSystemAudioMode(true, Constants.ADDR_BROADCAST);
+                finish();
                 break;
         }
     }
@@ -127,6 +140,10 @@ public class SystemAudioInitiationActionFromAvr extends HdmiCecFeatureAction {
 
     private void handleActiveSourceTimeout() {
         HdmiLogger.debug("Cannot get active source.");
+        if (audioSystem().mService.isStandbyMessageReceived()) {
+            HdmiLogger.debug("Device is going to sleep, avoid to wake it up.");
+            return;
+        }
         // If not able to find Active Source and the current device has playbcak functionality,
         // claim Active Source and start to query TV system audio mode support.
         if (audioSystem().mService.isPlaybackDevice()) {
@@ -147,7 +164,10 @@ public class SystemAudioInitiationActionFromAvr extends HdmiCecFeatureAction {
                     HdmiLogger.debug("queryTvSystemAudioModeSupport supported:" + supported);
                     if (supported) {
                         if (audioSystem().checkSupportAndSetSystemAudioMode(true)) {
-                            sendSetSystemAudioMode(true, Constants.ADDR_BROADCAST);
+                            HdmiLogger.debug("Wait two seconds for <Feature Abort> of system audio control");
+                            mState = STATE_WAITING_FOR_TV_SUPPORT;
+                            addTimer(mState, HdmiConfig.TIMEOUT_MS);
+                            return;
                         }
                         finish();
                     } else {

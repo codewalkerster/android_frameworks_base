@@ -80,11 +80,6 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
 
     private final Handler mHandler = new Handler();
 
-    private final Runnable mReleaseAudioPatch = ()->{
-        HdmiLogger.debug("Hotplug out and switch to home finally");
-        switchToHomeTvInput();
-    };
-
     // Load the Audio descriptors.
     private static final List<DeviceConfig> CONFIG = getConfig();
     private static List<DeviceConfig> getConfig() {
@@ -103,6 +98,8 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         }
         return config;
     }
+
+    private boolean mCachedRoute = false;
 
     // Whether the System Audio Control feature is enabled or not. True by default.
     @GuardedBy("mLock")
@@ -236,7 +233,6 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         HdmiPortInfo portInfo = mService.getPortInfo(portId);
         if (portInfo != null && portInfo.getType() == HdmiPortInfo.PORT_OUTPUT) {
             mCecMessageCache.flushAll();
-            mHandler.removeCallbacks(mReleaseAudioPatch);
             if (!connected) {
                 mTvSystemAudioModeSupport = null;
                 if (isSystemAudioActivated()) {
@@ -244,19 +240,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
                 }
                 if (isArcEnabled()) {
                     setArcStatus(false);
-                    // Release audio patch if hotplug out.
-                    mHandler.postDelayed(mReleaseAudioPatch, HdmiControlService.DEVICE_CLEANUP_TIMEOUT);
                 }
 
                 // Cancel all actions
                 removeAllActions();
-            }
-        } else if (portId != 0) {
-            // AudioSystem device will have permanent HotplugDetectionAction as well as TV.
-            // If not the audio system may not observe the devices as needed.
-            List<HotplugDetectionAction> hotplugActions = getActions(HotplugDetectionAction.class);
-            if (!hotplugActions.isEmpty()) {
-                hotplugActions.get(0).pollAllDevicesNow();
             }
         }
     }
@@ -319,6 +306,7 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         mService.sendCecCommand(
                 HdmiCecMessageBuilder.buildDeviceVendorIdCommand(
                         getDeviceInfo().getLogicalAddress(), mService.getVendorId()));
+        mService.unregisterTvInputCallback(mTvInputCallback);
         mService.registerTvInputCallback(mTvInputCallback);
 
         // This prevents turning on of System Audio Mode during a quiescent boot. If the quiescent
@@ -355,6 +343,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         if ((systemAudioOnPowerOnProp == ALWAYS_SYSTEM_AUDIO_CONTROL_ON_POWER_ON)
                 || ((systemAudioOnPowerOnProp == USE_LAST_STATE_SYSTEM_AUDIO_CONTROL_ON_POWER_ON)
                 && lastSystemAudioControlStatus && isSystemAudioControlFeatureEnabled())) {
+            if (hasAction(SystemAudioInitiationActionFromAvr.class)) {
+                Slog.i(TAG, "SystemAudioInitiationActionFromAvr is in progress. Restarting.");
+                removeAction(SystemAudioInitiationActionFromAvr.class);
+            }
             addAndStartAction(new SystemAudioInitiationActionFromAvr(this));
         }
     }
@@ -500,7 +492,12 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
             HdmiLogger.debug("AVR device is not directly connected with TV");
             return Constants.ABORT_NOT_IN_CORRECT_MODE;
         } else {
-            addAndStartAction(new ArcInitiationActionFromAvr(this));
+            if (mService.isEArcConnection()) {
+                HdmiLogger.debug("handleRequestArcInitiate blocked because eARC connection is established");
+                return Constants.ABORT_NOT_IN_CORRECT_MODE;
+            } else {
+                addAndStartAction(new ArcInitiationActionFromAvr(this));
+            }
             if (!mService.isSystemAudioActivated() && !hasAction(SystemAudioInitiationActionFromAvr.class)) {
                 HdmiLogger.debug("start audio control for arc needed");
                 addAndStartAction(new SystemAudioInitiationActionFromAvr(this));
@@ -520,6 +517,12 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
             HdmiLogger.debug("ARC is not established between TV and AVR device");
             return Constants.ABORT_NOT_IN_CORRECT_MODE;
         } else {
+            if (mService.isEArcConnection()) {
+                // TV may need to terminate arc when earc is established, thus termination message
+                // is still needed in this scenario.
+                HdmiLogger.debug("handleRequestArcTermination when eARC connection is established");
+            }
+
             if (!getActions(ArcTerminationActionFromAvr.class).isEmpty()
                     && !getActions(ArcTerminationActionFromAvr.class).get(0).mCallbacks.isEmpty()) {
                 IHdmiControlCallback callback =
@@ -541,9 +544,6 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         HdmiLogger.debug(TAG + "Stub handleRequestShortAudioDescriptor");
         if (!isSystemAudioControlFeatureEnabled()) {
             return Constants.ABORT_REFUSED;
-        }
-        if (!isSystemAudioActivated()) {
-            return Constants.ABORT_NOT_IN_CORRECT_MODE;
         }
 
         @AudioCodec int[] audioCodecs = parseAudioCodecs(message.getParams());
@@ -841,6 +841,17 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
     protected int handleSystemAudioModeRequest(HdmiCecMessage message) {
         assertRunOnServiceThread();
         boolean systemAudioStatusOn = message.getParams().length != 0;
+        if (systemAudioStatusOn && !mService.isPowerOnOrTransient()) {
+            HdmiLogger.debug("handleSystemAudioModeRequest wakes up the device first");
+            mService.wakeUp();
+            // For CECT 11.2.15-9 and 11.2.15-19, it can't broadcast <Set System Audio Mode> directly.
+            mService.sendCecCommand(
+                    HdmiCecMessageBuilder.buildSetSystemAudioMode(
+                            getDeviceInfo().getLogicalAddress(),
+                            Constants.ADDR_TV,
+                            systemAudioStatusOn));
+            return Constants.HANDLED;
+        }
         // Check if the request comes from a non-TV device.
         // Need to check if TV supports System Audio Control
         // if non-TV device tries to turn on the feature
@@ -912,6 +923,20 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         if (!checkSupportAndSetSystemAudioMode(
                 HdmiUtils.parseCommandParamSystemAudioStatus(message))) {
             return Constants.ABORT_REFUSED;
+        }
+        return Constants.HANDLED;
+    }
+
+    @Constants.HandleMessageResult
+    protected int handleSetAudioVolumeLevel(SetAudioVolumeLevelMessage message) {
+        int volume = message.getAudioVolumeLevel();
+        HdmiLogger.debug("handleSetAudioVolumeLevel vol:" + volume + " sac:" + mService.isSystemAudioActivated());
+        if (volume == Constants.AUDIO_VOLUME_STATUS_UNKNOWN) {
+            return Constants.HANDLED;
+        }
+        if (mService.isSystemAudioActivated()) {
+            mService.getAudioManager().setStreamVolume(AudioManager.STREAM_MUSIC,
+                    volume, AudioManager.FLAG_SHOW_UI);
         }
         return Constants.HANDLED;
     }
@@ -1093,6 +1118,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         if (SystemProperties.getBoolean(Constants.PROPERTY_ARC_SUPPORT, true)
                 && isDirectConnectToTv() && mService.isSystemAudioActivated()) {
             if (!mArcEstablished && (!hasAction(ArcInitiationActionFromAvr.class))) {
+                if (mService.isEArcConnection()) {
+                    HdmiLogger.debug("init arc blocked because eARC connection is established");
+                    return;
+                }
                 addAndStartAction(new ArcInitiationActionFromAvr(this));
             }
         }
@@ -1114,6 +1143,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
     void onSystemAudioControlFeatureSupportChanged(boolean enabled) {
         setSystemAudioControlFeatureEnabled(enabled);
         if (enabled) {
+            if (hasAction(SystemAudioInitiationActionFromAvr.class)) {
+                Slog.i(TAG, "SystemAudioInitiationActionFromAvr is in progress. Restarting.");
+                removeAction(SystemAudioInitiationActionFromAvr.class);
+            }
             addAndStartAction(new SystemAudioInitiationActionFromAvr(this));
         }
     }
@@ -1217,6 +1250,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
                 || !mService.readBooleanSystemProperty(Constants.PROPERTY_ARC_SUPPORT, true)) {
             return;
         }
+        if (mService.isEArcConnection()) {
+            HdmiLogger.debug("terminateAudioReturnChannel blocked because eARC connection is established");
+            return;
+        }
         addAndStartAction(new ArcTerminationActionFromAvr(this));
     }
 
@@ -1227,6 +1264,10 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
             return;
         }
         setArcStatus(false);
+        if (mService.isEArcConnection()) {
+            HdmiLogger.debug("terminateArc blocked because eARC connection is established");
+            return;
+        }
         mService.sendCecCommand(HdmiCecMessageBuilder.buildTerminateArc(
                             getDeviceInfo().getLogicalAddress(), Constants.ADDR_TV));
     }
@@ -1311,12 +1352,21 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
     }
 
     private void initArcOnFromAvr() {
+        if (mService.isEArcConnection()) {
+            HdmiLogger.debug("initArcOnFromAvr blocked because eARC connection is established");
+            return;
+        }
         removeAction(ArcTerminationActionFromAvr.class);
         if (SystemProperties.getBoolean(Constants.PROPERTY_ARC_SUPPORT, true)
                 && isDirectConnectToTv() && !isArcEnabled()) {
             removeAction(ArcInitiationActionFromAvr.class);
             addAndStartAction(new ArcInitiationActionFromAvr(this));
         }
+    }
+
+    void removeArcActions() {
+        removeAction(ArcInitiationActionFromAvr.class);
+        removeAction(ArcTerminationActionFromAvr.class);
     }
 
     protected void routeToPortId(int portId) {
@@ -1385,6 +1435,7 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
 
         if (!mService.isBootCompleted()) {
             HdmiLogger.info("Don't switch to arc input for not bot completed");
+            mCachedRoute = true;
             return;
         }
 
@@ -1405,6 +1456,14 @@ public class HdmiCecLocalDeviceAudioSystem extends HdmiCecLocalDeviceSource {
         }
 
         setRoutingPort(portId);
+    }
+
+    void bootComplete() {
+        int localPort = getLocalActivePort();
+        HdmiLogger.debug("audio system on boot completed with local active port:" + localPort);
+        if (mCachedRoute && (localPort!= Constants.CEC_SWITCH_HOME)) {
+            routeToTvInputFromPortId(localPort);
+        }
     }
 
     // For device to switch to specific TvInput with corresponding URI.

@@ -28,7 +28,7 @@ import android.hardware.tv.cec.V1_0.SendMessageResult;
 final class RequestArcInitiationAction extends RequestArcAction {
     private static final String TAG = "RequestArcInitiationAction";
 
-    private static final int MAX_SEND_RETRY_COUNT = 2;
+    private static final int MAX_SEND_RETRY_COUNT = 5;
     private int mSendRetryCount = 0;
     /**
      * @Constructor
@@ -95,8 +95,8 @@ final class RequestArcInitiationAction extends RequestArcAction {
                     // cases where it is in earc mode and where it is switching its arc status.
                     // Don't disableArc in here.
                     // tv().disableArc();
-                    finishWithCallback(HdmiControlManager.RESULT_TARGET_NOT_AVAILABLE);
-                    return true;
+                    //finishWithCallback(HdmiControlManager.RESULT_TARGET_NOT_AVAILABLE);
+                    return false;
                 }
                 return false;
             case Constants.MESSAGE_INITIATE_ARC:

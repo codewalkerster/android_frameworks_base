@@ -75,7 +75,10 @@ public class HdmiEarcLocalDeviceTx extends HdmiEarcLocalDevice {
         super(service, HdmiDeviceInfo.DEVICE_TV);
 
         synchronized (mLock) {
-            mEarcStatus = HDMI_EARC_STATUS_EARC_PENDING;
+            // From EArc hal to initialized the connection status. When cec switch is updated,
+            // the earc status saved is reset in the new earc local device. Thus we need to
+            // initlialize it with earc hal.
+            mEarcStatus = mService.getEarcStatus(mService.getEarcPort());
         }
         mReportCapsHandler = new Handler(service.getServiceLooper());
         mReportCapsRunnable = new ReportCapsRunnable();
@@ -89,7 +92,7 @@ public class HdmiEarcLocalDeviceTx extends HdmiEarcLocalDevice {
         int oldEarcStatus;
 
         synchronized (mLock) {
-            HdmiLogger.debug("eARC state change [old: %s(%d) new: %s(%d)]",
+            HdmiLogger.debug("eARC tx state change [old: %s(%d) new: %s(%d)]",
                     earcStatusToString(mEarcStatus), mEarcStatus,
                     earcStatusToString(status), status);
             oldEarcStatus = mEarcStatus;
@@ -112,8 +115,6 @@ public class HdmiEarcLocalDeviceTx extends HdmiEarcLocalDevice {
             mService.removeArcActions();
             if (oldEarcStatus == HDMI_EARC_STATUS_ARC_PENDING) {
                 // Note that if it's switched from ARC to EARC.
-                mService.switchToEArc();
-
                 mService.startArcAction(false, null);
             }
             mReportCapsHandler.postDelayed(mReportCapsRunnable, REPORT_CAPS_MAX_DELAY_MS);
@@ -124,6 +125,7 @@ public class HdmiEarcLocalDeviceTx extends HdmiEarcLocalDevice {
         synchronized (mLock) {
             if (mEarcStatus == HDMI_EARC_STATUS_EARC_CONNECTED
                     && mReportCapsHandler.hasCallbacks(mReportCapsRunnable)) {
+                mService.switchToEArc();
                 mReportCapsHandler.removeCallbacksAndMessages(null);
                 List<AudioDescriptor> audioDescriptors = parseCapabilities(rawCapabilities);
                 mService.notifyEarcStatusToAudioService(true, audioDescriptors);

@@ -35,6 +35,7 @@ abstract class HdmiEarcLocalDevice extends HdmiLocalDevice {
 
     protected HdmiEarcLocalDevice(HdmiControlService service, int deviceType) {
         super(service, deviceType);
+        HdmiLogger.debug("HdmiEarcLocalDevice deviceType:" + deviceType);
     }
 
     // Factory method that returns HdmiCecLocalDevice of corresponding type.
@@ -42,6 +43,8 @@ abstract class HdmiEarcLocalDevice extends HdmiLocalDevice {
         switch (deviceType) {
             case HdmiDeviceInfo.DEVICE_TV:
                 return new HdmiEarcLocalDeviceTx(service);
+            case HdmiDeviceInfo.DEVICE_AUDIO_SYSTEM:
+                return new HdmiEarcLocalDeviceRx(service);
             default:
                 return null;
         }

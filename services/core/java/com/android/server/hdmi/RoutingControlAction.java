@@ -45,7 +45,7 @@ final class RoutingControlAction extends HdmiCecFeatureAction {
     static final int STATE_WAIT_FOR_ROUTING_INFORMATION = 1;
 
     // Time out in millseconds used for <Routing Information>
-    private static final int TIMEOUT_ROUTING_INFORMATION_MS = 1000;
+    private static final int TIMEOUT_ROUTING_INFORMATION_MS = 3000;
 
     // If set to true, call {@link HdmiControlService#invokeInputChangeListener()} when
     // the routing control/active source change happens. The listener should be called if
@@ -69,6 +69,13 @@ final class RoutingControlAction extends HdmiCecFeatureAction {
     @Override
     public boolean start() {
         mState = STATE_WAIT_FOR_ROUTING_INFORMATION;
+        HdmiDeviceInfo avr = tv().getAvrDeviceInfo();
+        if (avr != null && avr.getPhysicalAddress() == mCurrentRoutingPath) {
+            addTimer(mState, TIMEOUT_ROUTING_INFORMATION_MS);
+            return true;
+        }
+        // Just send another routing control message to make sure it 100 percent responds.
+        sendSetStreamPath();
         HdmiDeviceInfo targetDevice = getDeviceInfoByPath(mCurrentRoutingPath);
         if (targetDevice != null) {
             // We should try to make sure RoutingControlAction is called when the DiscoveryAction
@@ -80,9 +87,7 @@ final class RoutingControlAction extends HdmiCecFeatureAction {
                 turnOnDevice(targetDevice.getLogicalAddress());
             }
             if (targetDevice.isSourceType()) {
-                // If there is a source device, just send another routing control message
-                // to make sure it 100 percent responds.
-                // sendSetStreamPath();
+                // If target device is a source device, just finish this action.
                 finishWithCallback(HdmiControlManager.RESULT_SUCCESS);
                 return true;
             }
@@ -113,7 +118,9 @@ final class RoutingControlAction extends HdmiCecFeatureAction {
                 turnOnDevice(targetDevice.getLogicalAddress());
             }
             // Use the responded <Active Source> to update active input.
-            sendSetStreamPath();
+            if (targetDevice == null || targetDevice.isSourceType()) {
+                sendSetStreamPath();
+            }
             finishWithCallback(HdmiControlManager.RESULT_SUCCESS);
             return true;
         }

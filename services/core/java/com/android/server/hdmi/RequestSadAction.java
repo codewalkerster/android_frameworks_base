@@ -179,22 +179,12 @@ final class RequestSadAction extends HdmiCecFeatureAction {
             return false;
         }
         if (cmd.getOpcode() == Constants.MESSAGE_REPORT_SHORT_AUDIO_DESCRIPTOR) {
-            HdmiLogger.info("Received sad " + cmd);
             if (cmd.getParams() == null || cmd.getParams().length == 0
                     || cmd.getParams().length % 3 != 0) {
                 // Invalid message. Wait for time-out and query again.
                 return true;
             }
-            for (int i = 0; i < cmd.getParams().length - 2; i += 3) {
-                if (isValidCodec(cmd.getParams()[i])) {
-                    byte[] sad = new byte[]{cmd.getParams()[i], cmd.getParams()[i + 1],
-                            cmd.getParams()[i + 2]};
-                    updateResult(sad);
-                } else {
-                    // Don't include invalid codecs in the result. Don't query again.
-                    Slog.w(TAG, "Dropped invalid codec " + cmd.getParams()[i] + ".");
-                }
-            }
+            extractSad(cmd);
             mQueriedSadCount += MAX_SAD_PER_REQUEST;
             mTimeoutRetry = 0;
             querySad();
@@ -218,6 +208,20 @@ final class RequestSadAction extends HdmiCecFeatureAction {
             }
         }
         return false;
+    }
+
+    private void extractSad(HdmiCecMessage cmd) {
+        HdmiLogger.info("extractSad " + cmd);
+        for (int i = 0; i < cmd.getParams().length - 2; i += 3) {
+            if (isValidCodec(cmd.getParams()[i])) {
+                byte[] sad = new byte[]{cmd.getParams()[i], cmd.getParams()[i + 1],
+                        cmd.getParams()[i + 2]};
+                updateResult(sad);
+            } else {
+                // Don't include invalid codecs in the result. Don't query again.
+                Slog.w(TAG, "Dropped invalid codec " + cmd.getParams()[i] + ".");
+            }
+        }
     }
 
     private boolean isValidCodec(byte codec) {
@@ -255,7 +259,10 @@ final class RequestSadAction extends HdmiCecFeatureAction {
 
     private void wrapUpAndFinish() {
         if (mSupportedSads.isEmpty()) {
-            HdmiLogger.warning("RequestSadAction got no sad!");
+            HdmiLogger.warning("RequestSadAction got no sad, may use TV's sad!");
+            if (tv() != null && tv().getSadMessage() != null) {
+                extractSad(tv().getSadMessage());
+            }
         }
         String sads = "";
         for (byte[] sad : mSupportedSads) {

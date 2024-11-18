@@ -25,6 +25,8 @@ import static android.hardware.hdmi.HdmiControlManager.POWER_CONTROL_MODE_NONE;
 import static android.hardware.hdmi.HdmiControlManager.SOUNDBAR_MODE_DISABLED;
 import static android.hardware.hdmi.HdmiControlManager.SOUNDBAR_MODE_ENABLED;
 import static android.hardware.hdmi.HdmiControlManager.TV_SEND_STANDBY_ON_SLEEP_ENABLED;
+import static android.hardware.hdmi.HdmiControlManager.VOLUME_CONTROL_ENABLED;
+import static android.hardware.hdmi.HdmiControlManager.VOLUME_CONTROL_DISABLED;
 
 import static com.android.server.hdmi.Constants.ADDR_UNREGISTERED;
 import static com.android.server.hdmi.Constants.DISABLED;
@@ -153,6 +155,10 @@ public class HdmiControlService extends SystemService {
     private static final String TAG = "HdmiControlService";
     private static final Locale HONG_KONG = new Locale("zh", "HK");
     private static final Locale MACAU = new Locale("zh", "MO");
+    private static final String TAIWAN_HantLanguageTag = "zh-Hant-TW";
+    private static final String HONG_KONG_HantLanguageTag = "zh-Hant-HK";
+    private static final String HONG_KONG_YUE_HantLanguageTag = "yue-Hant-HK";
+    private static final String MACAU_HantLanguageTag = "zh-Hant-MO";
 
     private static final Map<String, String> sTerminologyToBibliographicMap =
             createsTerminologyToBibliographicMap();
@@ -183,7 +189,11 @@ public class HdmiControlService extends SystemService {
     }
 
     @VisibleForTesting static String localeToMenuLanguage(Locale locale) {
-        if (locale.equals(Locale.TAIWAN) || locale.equals(HONG_KONG) || locale.equals(MACAU)) {
+        if (locale.equals(Locale.TAIWAN) || locale.equals(HONG_KONG) || locale.equals(MACAU) ||
+                locale.toLanguageTag().equals(TAIWAN_HantLanguageTag) ||
+                locale.toLanguageTag().equals(HONG_KONG_HantLanguageTag) ||
+                locale.toLanguageTag().equals(HONG_KONG_YUE_HantLanguageTag) ||
+                locale.toLanguageTag().equals(MACAU_HantLanguageTag)) {
             // Android always returns "zho" for all Chinese variants.
             // Use "bibliographic" code defined in CEC639-2 for traditional
             // Chinese used in Taiwan/Hong Kong/Macau.
@@ -217,6 +227,10 @@ public class HdmiControlService extends SystemService {
             "hdmi_control_auto_language_change_enabled";
     private static final String HDMI_CONTROL_ONE_TOUCH_PLAY_ENABLED =
             "hdmi_control_one_touch_play_enabled";
+    private static final String HDMI_CONTROL_VOLUME_CONTROL_ENABLED =
+            "hdmi_control_volume_control_enabled";
+    private static final String HDMI_CONTRO_AUTO_DEVICE_OFF_ENABLED =
+            "hdmi_control_auto_device_off_enabled";
 
     // Used by PhoneWindowManager to notify the early screen status changes.
     private static final String CEC_SCREEN_STATE = "cec_screen_state";
@@ -229,6 +243,7 @@ public class HdmiControlService extends SystemService {
     private boolean mAutoLanguageChanged;
     // Indicate if one touch play is enabled
     private boolean mOneTouchPlayEnabled;
+    private boolean mAutoDeviceOffEnabled;
 
     private boolean mSendStandbyNoneActive;
     private boolean mSendInActiveSource;
@@ -250,10 +265,28 @@ public class HdmiControlService extends SystemService {
                     == HdmiControlManager.SET_MENU_LANGUAGE_ENABLED);
         writeBooleanSetting(HDMI_CONTROL_AUTO_LANGUAGE_CHANGE_ENABLED, mAutoLanguageChanged);
 
+        mAutoDeviceOffEnabled = readBooleanSetting(HDMI_CONTRO_AUTO_DEVICE_OFF_ENABLED, true);
+        writeBooleanSetting(HDMI_CONTRO_AUTO_DEVICE_OFF_ENABLED, mAutoDeviceOffEnabled);
+
         writeBooleanSetting(Constants.DROIDLOGIC_CEC_SUPPORT, true);
 
         mSetupFinished = Secure.getInt(getContext().getContentResolver(),
             Secure.USER_SETUP_COMPLETE, 0) != 0;
+
+        // init volume control global settings.
+        boolean volmeControlConf = getHdmiCecVolumeControl() == VOLUME_CONTROL_ENABLED;
+        mVolumeControlSettings = readBooleanSetting(HDMI_CONTROL_VOLUME_CONTROL_ENABLED, true);
+        if (isPlaybackDevice() && !isAudioSystemDevice()) {
+            if (mVolumeControlSettings != volmeControlConf) {
+                HdmiLogger.warning("volmeControlConf:" + volmeControlConf + " settings:" + mVolumeControlSettings);
+                // For playback device, the default volume control settings is disabled and we need to make sure
+                // the shared preference is in accord.
+                mHdmiCecVolumeControl = mVolumeControlSettings ? VOLUME_CONTROL_ENABLED : VOLUME_CONTROL_DISABLED;
+                mHdmiCecConfig.setIntValue(HdmiControlManager.CEC_SETTING_NAME_VOLUME_CONTROL_MODE, mHdmiCecVolumeControl);
+            } else {
+                writeBooleanSetting(HDMI_CONTROL_VOLUME_CONTROL_ENABLED, volmeControlConf);
+            }
+        }
 
         mSendStandbyNoneActive = mResources.getBoolean(R.bool.config_cecSendStandbyNoneActive);
         mSendInActiveSource = mResources.getBoolean(R.bool.config_cecSendInactiveSource);
@@ -266,10 +299,6 @@ public class HdmiControlService extends SystemService {
             writeBooleanSetting(HdmiControlManager.CEC_SETTING_NAME_SOUNDBAR_MODE, isDsmEnabled());
             HdmiLogger.info("initialize global settings soundbar_mode:" + isDsmEnabled());
         }
-    }
-
-    void runOnServiceThreadDelayed(Runnable runnable, long delay) {
-        mHandler.postDelayed(new WorkSourceUidPreservingRunnable(runnable), delay);
     }
 
     boolean isTvAvailable() {
@@ -286,6 +315,10 @@ public class HdmiControlService extends SystemService {
 
     boolean isAutoChangeLanguageEnabled() {
         return mAutoLanguageChanged;
+    }
+
+    boolean isAutoDeviceOffEnabled() {
+        return mAutoDeviceOffEnabled;
     }
 
     boolean isSendStandbyNoneActive() {
@@ -545,6 +578,9 @@ public class HdmiControlService extends SystemService {
     @HdmiControlManager.VolumeControl
     private int mHdmiCecVolumeControl;
 
+    // Compatible with the ota scenario and only used for box.
+    private boolean mVolumeControlSettings;
+
     // Caches the volume behaviors of all audio output devices in AVB_AUDIO_OUTPUT_DEVICES.
     @GuardedBy("mLock")
     private Map<AudioDeviceAttributes, Integer> mAudioDeviceVolumeBehaviors = new HashMap<>();
@@ -554,6 +590,10 @@ public class HdmiControlService extends SystemService {
 
     // Make sure HdmiCecConfig is instantiated and the XMLs are read.
     private HdmiCecConfig mHdmiCecConfig;
+
+    // Timeout value for start ARC action after an established eARC connection was terminated,
+    // e.g. because eARC was disabled in Settings.
+    private static final int EARC_TRIGGER_START_ARC_ACTION_DELAY = 500;
 
     /**
      * Interface to report send result.
@@ -614,6 +654,12 @@ public class HdmiControlService extends SystemService {
                 case Intent.ACTION_SHUTDOWN:
                     if (isPowerOnOrTransient() && !isReboot) {
                         onStandby(STANDBY_SHUTDOWN);
+                    }
+                case Intent.ACTION_BOOT_COMPLETED:
+                    HdmiLogger.info("Receive boot completed broadcast");
+                    mBootComplete = true;
+                    for (HdmiCecLocalDevice localDevice : getAllCecLocalDevices()) {
+                        localDevice.bootComplete();
                     }
                     break;
             }
@@ -683,6 +729,14 @@ public class HdmiControlService extends SystemService {
     // Set to true while the eARC feature is enabled.
     @GuardedBy("mLock")
     private boolean mEarcEnabled;
+
+    // Set to true if eARC feature is updated to enabled.
+    private boolean mEarcEnabledStarted;
+
+    private Runnable mResetEarcEnableFlag = () -> {
+        HdmiLogger.debug("earc enable flag reset");
+        mEarcEnabledStarted = false;
+    };
 
     private int mEarcPortId = -1;
 
@@ -945,6 +999,7 @@ public class HdmiControlService extends SystemService {
             filter.addAction(Intent.ACTION_SCREEN_ON);
             filter.addAction(Intent.ACTION_SHUTDOWN);
             filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
+            filter.addAction(Intent.ACTION_BOOT_COMPLETED);
             getContext().registerReceiver(mHdmiControlBroadcastReceiver, filter);
 
             // Register ContentObserver to monitor the settings change.
@@ -1120,6 +1175,11 @@ public class HdmiControlService extends SystemService {
                                 HdmiControlManager.CEC_SETTING_NAME_VOLUME_CONTROL_MODE);
                         HdmiLogger.debug("cec config onchange " + setting + " " + enabled);
                         setHdmiCecVolumeControlEnabledInternal(enabled);
+                        if (isPlaybackDevice() && !isAudioSystemDevice()
+                            && (enabled == VOLUME_CONTROL_ENABLED != mVolumeControlSettings)) {
+                            HdmiLogger.debug("update volume control settings:" + mVolumeControlSettings);
+                            writeBooleanSetting(HDMI_CONTROL_VOLUME_CONTROL_ENABLED, enabled == VOLUME_CONTROL_ENABLED);
+                        }
                     }
                 }, mServiceThreadExecutor);
         mHdmiCecConfig.registerChangeListener(
@@ -1161,6 +1221,11 @@ public class HdmiControlService extends SystemService {
                             boolean earcEnabledSetting = mHdmiCecConfig.getIntValue(
                                     HdmiControlManager.SETTING_NAME_EARC_ENABLED)
                                     == EARC_FEATURE_ENABLED;
+                            if (earcEnabledSetting) {
+                                mEarcEnabledStarted = true;
+                                mHandler.removeCallbacks(mResetEarcEnableFlag);
+                                runOnServiceThreadDelayed(mResetEarcEnableFlag, HdmiConfig.TIMEOUT_MS * 2);
+                            }
                             setEarcEnabled(earcEnabledSetting && mEarcTxFeatureFlagEnabled
                                     ? EARC_FEATURE_ENABLED : EARC_FEATURE_DISABLED);
                         } else {
@@ -1224,24 +1289,23 @@ public class HdmiControlService extends SystemService {
         return mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getState() == Display.STATE_OFF;
     }
 
+
+    boolean isBootCompleted() {
+        return mBootComplete;
+    }
+
     private void bootCompleted() {
         Slog.i(TAG, "bootCompleted");
-        mBootComplete = true;
         // on boot, if device is interactive, set HDMI CEC state as powered on as well
         if (mPowerManager.isInteractive() && isPowerStandbyOrTransient()) {
             mPowerStatusController.setPowerStatus(HdmiControlManager.POWER_STATUS_ON);
             // Start all actions that were queued because the device was in standby
             if (mAddressAllocated) {
                 for (HdmiCecLocalDevice localDevice : getAllCecLocalDevices()) {
-                    localDevice.bootComplete();
                     localDevice.startQueuedActions();
                 }
             }
         }
-    }
-
-    boolean isBootCompleted() {
-        return mBootComplete;
     }
 
     /**
@@ -1428,7 +1492,7 @@ public class HdmiControlService extends SystemService {
      */
     private void onInitializeCecComplete(int initiatedBy) {
         HdmiLogger.debug("onInitializeCecComplete " + initiatedBy);
-        updatePowerStatusOnInitializeCecComplete();
+        mPowerStatusController.setPowerStatus(HdmiControlManager.POWER_STATUS_ON);
         mWakeUpMessageReceived = false;
 
         if (isTvDeviceEnabled()) {
@@ -1477,11 +1541,14 @@ public class HdmiControlService extends SystemService {
     private void registerContentObserver() {
         ContentResolver resolver = getContext().getContentResolver();
         String[] settings = new String[] {
+                HDMI_CONTRO_AUTO_DEVICE_OFF_ENABLED,
                 HDMI_CONTROL_AUTO_LANGUAGE_CHANGE_ENABLED,
                 HDMI_CONTROL_ONE_TOUCH_PLAY_ENABLED,
+                HDMI_CONTROL_VOLUME_CONTROL_ENABLED,
                 Global.MHL_INPUT_SWITCHING_ENABLED,
                 Global.MHL_POWER_CHARGE_ENABLED,
-                Global.DEVICE_NAME
+                Global.DEVICE_NAME,
+                HdmiControlManager.CEC_SETTING_NAME_SOUNDBAR_MODE
         };
         for (String s : settings) {
             resolver.registerContentObserver(Global.getUriFor(s), false, mSettingsObserver,
@@ -1512,6 +1579,19 @@ public class HdmiControlService extends SystemService {
                         sendCecCommand(HdmiCecMessageBuilder.buildGetMenuLanguageCommand(
                             playback().getDeviceInfo().getLogicalAddress(), Constants.ADDR_TV));
                     }
+                    break;
+                case HDMI_CONTROL_VOLUME_CONTROL_ENABLED:
+                    int volumeControl = enabled ? VOLUME_CONTROL_ENABLED : VOLUME_CONTROL_DISABLED;
+                    mVolumeControlSettings = enabled;
+                    if (isPlaybackDevice() && !isAudioSystemDevice()
+                        && (getHdmiCecVolumeControl() != volumeControl)) {
+                        HdmiLogger.debug("volume control settings changed with " + getHdmiCecVolumeControl());
+                        getHdmiCecConfig().setIntValue(HdmiControlManager.CEC_SETTING_NAME_VOLUME_CONTROL_MODE,
+                            volumeControl);
+                    }
+                    break;
+                case HDMI_CONTRO_AUTO_DEVICE_OFF_ENABLED:
+                    mAutoDeviceOffEnabled = enabled;
                     break;
                 case Global.MHL_INPUT_SWITCHING_ENABLED:
                     setMhlInputChangeEnabled(enabled);
@@ -1613,7 +1693,8 @@ public class HdmiControlService extends SystemService {
     @ServiceThreadOnly
     private List<Integer> getCecLocalDeviceTypes() {
         ArrayList<Integer> allLocalDeviceTypes = new ArrayList<>(mCecLocalDevices);
-        if (isDsmEnabled() && !allLocalDeviceTypes.contains(HdmiDeviceInfo.DEVICE_AUDIO_SYSTEM)
+        if (!isTvDevice() && isDsmEnabled()
+                && !allLocalDeviceTypes.contains(HdmiDeviceInfo.DEVICE_AUDIO_SYSTEM)
                 && isArcSupported() && mSoundbarModeFeatureFlagEnabled) {
             allLocalDeviceTypes.add(HdmiDeviceInfo.DEVICE_AUDIO_SYSTEM);
         } else if (!isDsmEnabled()
@@ -1875,6 +1956,10 @@ public class HdmiControlService extends SystemService {
         mHandler.post(new WorkSourceUidPreservingRunnable(runnable));
     }
 
+    void runOnServiceThreadDelayed(Runnable runnable, long delay) {
+        mHandler.postDelayed(new WorkSourceUidPreservingRunnable(runnable), delay);
+    }
+
     private void assertRunOnServiceThread() {
         if (Looper.myLooper() != mHandler.getLooper()) {
             throw new IllegalStateException("Should run on service thread.");
@@ -1895,6 +1980,13 @@ public class HdmiControlService extends SystemService {
             case Constants.MESSAGE_ROUTING_CHANGE:
             case Constants.MESSAGE_SET_STREAM_PATH:
             case Constants.MESSAGE_TEXT_VIEW_ON:
+                // RequestActiveSourceAction is started after the TV finished logical address
+                // allocation. This action is used by the TV to get the active source from the CEC
+                // network. If the TV sent a source changing CEC message, this action does not have
+                // to continue anymore.
+                if (isTvDeviceEnabled()) {
+                    tv().removeAction(RequestActiveSourceAction.class);
+                }
                 sendCecCommandWithRetries(command, callback);
                 break;
             default:
@@ -2136,12 +2228,12 @@ public class HdmiControlService extends SystemService {
             allocateLogicalAddress(localDevices, INITIATED_BY_HOTPLUG);
         }
 
+        // Reset the tv status
+        updateTvStatus(portId, connected);
+
         for (HdmiCecLocalDevice device : mHdmiCecNetwork.getLocalDeviceList()) {
             device.onHotplug(portId, connected);
         }
-
-        // Reset the tv status
-        updateTvStatus(portId, connected);
 
         announceHotplugEvent(portId, connected);
     }
@@ -3264,6 +3356,7 @@ public class HdmiControlService extends SystemService {
             // Other settings
             pw.println("mOneTouchPlayEnabled: " + mOneTouchPlayEnabled);
             pw.println("mAutoLanguageChanged: " + mAutoLanguageChanged);
+            pw.println("mAutoDeviceOffEnabled: " + mAutoDeviceOffEnabled);
             pw.println("mSendInActiveSource: " + isSendInactiveSource());
             pw.println("mSendStandbyNoneActive: " + isSendStandbyNoneActive());
             pw.println("mUseAnroidVolumeUi: " + isUseAndroidVolumeUi());
@@ -4520,7 +4613,7 @@ public class HdmiControlService extends SystemService {
         synchronized (mLock) {
             mSystemAudioActivated = on;
         }
-        if (changed) {
+        if (changed && isTvDevice()) {
             runOnServiceThread(this::checkEarcConnection);
         }
         runOnServiceThread(this::checkAndUpdateAbsoluteVolumeBehavior);
@@ -4947,7 +5040,9 @@ public class HdmiControlService extends SystemService {
                 switchToFullVolumeBehavior();
                 return;
             }
-        } else if (isPlaybackDevice() && playback() != null && !isAudioSystemDevice()) {
+        } else if (isPlaybackDevice() && playback() != null
+                    // audio system type could be changed with dsm but the instance not removed yet.
+                    && !isAudioSystemDevice() && audioSystem() == null) {
             localCecDevice = playback();
         } else {
             // Either this device type doesn't support AVB, or it hasn't fully initialized yet
@@ -5273,21 +5368,31 @@ public class HdmiControlService extends SystemService {
     @ServiceThreadOnly
     @VisibleForTesting
     protected void initializeEarcLocalDevice(final int initiatedBy) {
-        // TODO remove initiatedBy argument if it stays unused
         assertRunOnServiceThread();
         if (mEarcLocalDevice == null) {
-            mEarcLocalDevice = HdmiEarcLocalDevice.create(this, HdmiDeviceInfo.DEVICE_TV);
-        }
-        // TODO create HdmiEarcLocalDeviceRx if we're an audio system device.
-    }
+            if (isTvDevice()) {
+                HdmiLogger.debug("initializeEarcLocalDevice RX");
+                mEarcLocalDevice = HdmiEarcLocalDevice.create(this, HdmiDeviceInfo.DEVICE_TV);
+            } else {
+                // As Earc is enabled, just directly initialize rx. It may not be initialized
+                // if checked with soundbar mode conditions.
+                HdmiLogger.debug("initializeEarcLocalDevice TX");
+                mEarcLocalDevice = HdmiEarcLocalDevice.create(this, HdmiDeviceInfo.DEVICE_AUDIO_SYSTEM);
+            }
+       }
+   }
 
     @ServiceThreadOnly
     @VisibleForTesting
     protected void setEarcEnabled(@HdmiControlManager.EarcFeature int enabled) {
         assertRunOnServiceThread();
         synchronized (mLock) {
-            HdmiLogger.debug("setEarcEnabled " + enabled);
+            HdmiLogger.debug("setEarcEnabled " + enabled + " mEarcEnabled " + mEarcEnabled);
+            boolean oldEnabled = mEarcEnabled;
             updateEarcEnabled();
+            if (oldEnabled == mEarcEnabled) {
+                return;
+            }
 
             if (!isEarcSupported()) {
                 HdmiLogger.info("Enabled/disabled eARC setting, but the hardware doesn´t support eARC. "
@@ -5362,7 +5467,7 @@ public class HdmiControlService extends SystemService {
     }
 
     @ServiceThreadOnly
-    private int getEarcStatus() {
+    int getEarcStatus() {
         assertRunOnServiceThread();
         if (mEarcLocalDevice != null) {
             synchronized (mLock) {
@@ -5370,6 +5475,19 @@ public class HdmiControlService extends SystemService {
             }
         }
         return HDMI_EARC_STATUS_UNKNOWN;
+    }
+
+    @ServiceThreadOnly
+    int getEarcStatus(int portId) {
+        assertRunOnServiceThread();
+        if (mEarcController != null) {
+            return mEarcController.getState(portId);
+        }
+        return HDMI_EARC_STATUS_UNKNOWN;
+    }
+
+    int getEarcPort() {
+        return mEarcPortId;
     }
 
     @ServiceThreadOnly
@@ -5442,8 +5560,27 @@ public class HdmiControlService extends SystemService {
             // If eARC is disabled, the local device is null. This is why we notify
             // AudioService here that the eARC connection is terminated.
             HdmiLogger.debug("eARC state change [new: HDMI_EARC_STATUS_ARC_PENDING(2)]");
-            notifyEarcStatusToAudioService(false, new ArrayList<>());
-            startArcAction(true, null);
+            boolean audioControlEnabled = mHdmiCecConfig.getIntValue(
+                    HdmiControlManager.CEC_SETTING_NAME_SYSTEM_AUDIO_CONTROL)
+                        == HdmiControlManager.SYSTEM_AUDIO_CONTROL_ENABLED;
+            if (!audioControlEnabled) {
+                // It's system audio control disablement scenario
+                notifyEarcStatusToAudioService(false, new ArrayList<>());
+            } else {
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        startArcAction(true, new IHdmiControlCallback.Stub() {
+                            public void onComplete(int status) {
+                                HdmiLogger.debug("startArcAction ends with status=" + status);
+                                if (status != HdmiControlManager.RESULT_SUCCESS) {
+                                    notifyEarcStatusToAudioService(false, new ArrayList<>());
+                                }
+                            }
+                        });
+                    }
+                }, EARC_TRIGGER_START_ARC_ACTION_DELAY);
+            }
             getAtomWriter().earcStatusChanged(isEarcSupported(), isEarcEnabled(),
                     oldEarcStatus, status, HdmiStatsEnums.LOG_REASON_EARC_STATUS_CHANGED);
         } else {
@@ -5489,6 +5626,15 @@ public class HdmiControlService extends SystemService {
         }
     }
 
+    protected boolean isEArcConnection() {
+        if (mEarcLocalDevice == null) {
+            return false;
+        }
+        synchronized (mLock) {
+            return mEarcLocalDevice.mEarcStatus == HDMI_EARC_STATUS_EARC_CONNECTED;
+        }
+    }
+
     protected void startArcAction(boolean enabled, IHdmiControlCallback callback) {
         if (!isTvDeviceEnabled()) {
             invokeCallback(callback, HdmiControlManager.RESULT_INCORRECT_MODE);
@@ -5497,26 +5643,47 @@ public class HdmiControlService extends SystemService {
         }
     }
 
-    void switchToArc(boolean enabled) {
+    boolean switchToArc(boolean enabled) {
         int state = AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_HDMI_EARC, "");
+        int arcState = AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_HDMI_ARC, "");
+        HdmiLogger.debug("switchToArc earc state:%d, arc state:%d", state, arcState);
+
         if (enabled && state == 1) {
             HdmiLogger.debug("set updating_sad flag for switching from EARC to ARC");
             // Scenario 1 to set updating_sad flag: from earc to arc.
             // step 1: set flag. step 2:disconnect EARC. step 3:connect ARC.
             AudioSystem.setParameters(Constants.AUDIO_PARAM_SET_UPDATING_SAD);
+
+            // NOTE: Only directly add or remove ARC/EARC device here.
             notifyEarcStatusToAudioService(false, new ArrayList<>());
+        } else if (!enabled && mEarcEnabledStarted && arcState == 1) {
+            // When earc is enabled and arc has been established, the connection state changes from
+            // ARC to IDLE to EARC. The speaker could sound in the transitional stage. To avoid the
+            // speaker to sound, we need to abort removing arc device here and do this in #switchToEArc.
+            HdmiLogger.warning("Enable Earc and abort disabling arc");
+            return false;
         }
+        return true;
     }
 
     void switchToEArc() {
+        if (mEarcEnabledStarted) {
+            mEarcEnabledStarted = false;
+            mHandler.removeCallbacks(mResetEarcEnableFlag);
+        }
         // Unlike EArc, the connection could not be ARC even the connection state from EArc
         // driver is ARC with the concern of cec compatibility.
         int state = AudioSystem.getDeviceConnectionState(AudioSystem.DEVICE_OUT_HDMI_ARC, "");
+        HdmiLogger.debug("switchToEArc arc state:%d", state);
         if (state == 1) {
             HdmiLogger.debug("set updating_sad flag for switching from ARC to EARC");
             // Scenario 2 to set updating_sad flag: from earc to arc.
             // step 1: set flag. step 2:disconnect ARC. step 3:connect EARC.
             AudioSystem.setParameters(Constants.AUDIO_PARAM_SET_UPDATING_SAD);
+
+            // NOTE: Only directly add or remove ARC/EARC device here.
+            // Disable ARC state first, and then establish EARC connection.
+            tv().notifyArcStatusToAudioService(false, new ArrayList<>());
         }
     }
 
@@ -5542,7 +5709,11 @@ public class HdmiControlService extends SystemService {
 
     void removeArcActions() {
         if (isTvDeviceEnabled()) {
+            HdmiLogger.debug("TV removeArcActions");
             tv().removeArcActions();
+        } else if (audioSystem() != null) {
+            HdmiLogger.debug("AudioSystem removeArcActions");
+            audioSystem().removeArcActions();
         }
     }
 }

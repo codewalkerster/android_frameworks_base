@@ -46,8 +46,8 @@ final class OneTouchPlayAction extends HdmiCecFeatureAction {
     static final int STATE_WAITING_FOR_REPORT_POWER_STATUS = 1;
 
     // The maximum number of times we send <Give Device Power Status> before we give up.
-    // We wait up to RESPONSE_TIMEOUT_MS * LOOP_COUNTER_MAX = 10 seconds.
-    private static final int LOOP_COUNTER_MAX = 5;
+    // We wait up to RESPONSE_TIMEOUT_MS * LOOP_COUNTER_MAX = 20 seconds.
+    private static final int LOOP_COUNTER_MAX = 10;
 
     private final int mTargetAddress;
     private final boolean mIsCec20;

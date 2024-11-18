@@ -572,6 +572,8 @@ final class Constants {
     static final int DISABLED = 0;
     static final int ENABLED = 1;
 
+    static final long TV_HOTPLUG_POLLING_DELAY_MS = 200;
+
     static final int ALL_DEVICE_TYPES_TV = 7;
     static final int ALL_DEVICE_TYPES_RECORDER = 6;
     static final int ALL_DEVICE_TYPES_TUNER = 5;
