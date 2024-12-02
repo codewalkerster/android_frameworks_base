@@ -6593,6 +6593,10 @@
          device. -->
     <bool name="config_enableAppCloningBuildingBlocks">true</bool>
 
+    <!-- List of protected packages that require biometric authentication for modification
+         (Disable, force-stop or uninstalling updates). -->
+    <string-array name="config_biometric_protected_package_names" translatable="false" />
+
     <!-- Whether the variable refresh rate when typing feature is enabled for the device. -->
     <bool name="config_variableRefreshRateTypingSupported">false</bool>
 
