@@ -31,6 +31,8 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Stores a mapping of global keys.
@@ -59,6 +61,13 @@ final class GlobalKeyManager {
     private final SparseArray<GlobalKeyAction> mKeyMapping = new SparseArray<>();
     private boolean mBeganFromNonInteractive = false;
 
+    private static final Set<Integer> EXCLUDED_KEYCODES = new HashSet<Integer>() {{
+    add(KeyEvent.KEYCODE_F1);
+    add(KeyEvent.KEYCODE_BUTTON_3);
+    add(KeyEvent.KEYCODE_SETTINGS);
+    add(KeyEvent.KEYCODE_TV_INPUT);
+    }};
+
     public GlobalKeyManager(Context context) {
         loadGlobalKeys(context);
     }
@@ -81,6 +90,11 @@ final class GlobalKeyManager {
 
                 if (event.getAction() == KeyEvent.ACTION_UP) {
                     mBeganFromNonInteractive = false;
+                }
+                //modify for yts keyevent case
+                if (EXCLUDED_KEYCODES.contains(keyCode)) {
+                    Log.d(TAG, "still send keyevent to applications");
+                    return false;
                 }
                 return true;
             }
