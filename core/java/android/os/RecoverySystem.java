@@ -629,7 +629,8 @@ public class RecoverySystem {
             // If the package is on the /data partition, the package needs to
             // be processed (i.e. uncrypt'd). The caller specifies if that has
             // been done in 'processed' parameter.
-            if (filename.startsWith("/data/")) {
+            // ODROID
+            if (filename.startsWith("/data/") && !filename.contains("odroid")) {
                 if (processed) {
                     if (!BLOCK_MAP_FILE.exists()) {
                         Log.e(TAG, "Package claimed to have been processed but failed to find "
@@ -857,7 +858,8 @@ public class RecoverySystem {
 
         // If the package is on the /data partition, use the block map file as
         // the package name instead.
-        if (filename.startsWith("/data/")) {
+        // ODROID
+        if (filename.startsWith("/data/") && !filename.contains("odroid")) {
             filename = "@/cache/recovery/block.map";
         }
 
