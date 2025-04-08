@@ -34,6 +34,7 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Binder;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.text.SpannableStringBuilder;
 import android.text.style.BulletSpan;
 import android.util.DisplayMetrics;
@@ -208,37 +209,41 @@ public class ScreenPinningRequest implements View.OnClickListener,
             int rotation = getRotation(mContext);
 
             inflateView(rotation);
-            int bgColor = mContext.getColor(
-                    R.color.screen_pinning_request_window_bg);
-            if (ActivityManager.isHighEndGfx()) {
-                mLayout.setAlpha(0f);
-                if (rotation == ROTATION_SEASCAPE) {
-                    mLayout.setTranslationX(-OFFSET_DP * density);
-                } else if (rotation == ROTATION_LANDSCAPE) {
-                    mLayout.setTranslationX(OFFSET_DP * density);
-                } else {
-                    mLayout.setTranslationY(OFFSET_DP * density);
-                }
-                mLayout.animate()
-                        .alpha(1f)
-                        .translationX(0)
-                        .translationY(0)
-                        .setDuration(300)
-                        .setInterpolator(new DecelerateInterpolator())
-                        .start();
-
-                ValueAnimator colorAnim = ValueAnimator.ofObject(new ArgbEvaluator(), 0, bgColor);
-                colorAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                    @Override
-                    public void onAnimationUpdate(ValueAnimator animation) {
-                        final int c = (Integer) animation.getAnimatedValue();
-                        mColor.setColor(c);
+            //ODROID
+            boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+            if (!kiosk) {
+                int bgColor = mContext.getColor(
+                        R.color.screen_pinning_request_window_bg);
+                if (ActivityManager.isHighEndGfx()) {
+                    mLayout.setAlpha(0f);
+                    if (rotation == ROTATION_SEASCAPE) {
+                        mLayout.setTranslationX(-OFFSET_DP * density);
+                    } else if (rotation == ROTATION_LANDSCAPE) {
+                        mLayout.setTranslationX(OFFSET_DP * density);
+                    } else {
+                        mLayout.setTranslationY(OFFSET_DP * density);
                     }
-                });
-                colorAnim.setDuration(1000);
-                colorAnim.start();
-            } else {
-                mColor.setColor(bgColor);
+                    mLayout.animate()
+                            .alpha(1f)
+                            .translationX(0)
+                            .translationY(0)
+                            .setDuration(300)
+                            .setInterpolator(new DecelerateInterpolator())
+                            .start();
+
+                    ValueAnimator colorAnim = ValueAnimator.ofObject(new ArgbEvaluator(), 0, bgColor);
+                    colorAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                        @Override
+                        public void onAnimationUpdate(ValueAnimator animation) {
+                            final int c = (Integer) animation.getAnimatedValue();
+                            mColor.setColor(c);
+                        }
+                    });
+                    colorAnim.setDuration(1000);
+                    colorAnim.start();
+                } else {
+                    mColor.setColor(bgColor);
+                }
             }
 
             IntentFilter filter = new IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED);
@@ -333,7 +338,10 @@ public class ScreenPinningRequest implements View.OnClickListener,
             mLayout.findViewById(R.id.screen_pinning_back_bg).setVisibility(backBgVisibility);
             mLayout.findViewById(R.id.screen_pinning_back_bg_light).setVisibility(backBgVisibility);
 
-            addView(mLayout, getRequestLayoutParams(rotation));
+            //ODROID
+            boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+            if (!kiosk)
+                addView(mLayout, getRequestLayoutParams(rotation));
         }
 
         /**

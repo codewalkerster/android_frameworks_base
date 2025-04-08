@@ -1211,11 +1211,18 @@ public class CentralSurfacesImpl implements CoreStartable, CentralSurfaces {
         mPluginDependencyProvider.allowPluginDependency(DarkIconDispatcher.class);
         mPluginDependencyProvider.allowPluginDependency(StatusBarStateController.class);
 
+        //ODROID
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+
         // Set up CollapsedStatusBarFragment and PhoneStatusBarView
         StatusBarInitializer initializer = mCentralSurfacesComponent.getStatusBarInitializer();
         initializer.setStatusBarViewUpdatedListener(
                 (statusBarView, statusBarViewController, statusBarTransitions) -> {
                     mStatusBarView = statusBarView;
+                    //ODROID
+                    if (kiosk) {
+                        mStatusBarView.setVisibility(View.GONE);
+                    }
                     mPhoneStatusBarViewController = statusBarViewController;
                     mStatusBarTransitions = statusBarTransitions;
                     mNotificationShadeWindowViewController
