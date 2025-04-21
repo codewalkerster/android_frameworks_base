@@ -1354,13 +1354,6 @@ status_t BootAnimation::readyToRun() {
     mInitHeight = android::base::GetIntProperty("ro.bootanimation_optimal_display_height", 1080);
     ui::Size resolution = displayMode.resolution;
 
-    if (resolution.width == 3840 && resolution.height == 2160) {
-        //Avoid resizing boot animation.
-        ALOGD("4K resolution\n");
-        mMaxWidth = 3840;
-        mMaxHeight = 2160;
-    }
-
     if (ui::ROTATION_90 == mRotation || ui::ROTATION_270 == mRotation) {
         std::swap(resolution.width, resolution.height);
         std::swap(displayMode.resolution.width,displayMode.resolution.height);
