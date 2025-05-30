@@ -215,6 +215,7 @@ import com.android.server.wm.ActivityTaskManagerService;
 import com.android.server.wm.WindowManagerGlobalLock;
 import com.android.server.wm.WindowManagerService;
 import com.google.android.things.odroid.OdroidThingsManager;
+import vendor.hardkernel.hardware.rtc.internal.RtcManager;
 
 import dalvik.system.VMRuntime;
 
@@ -3080,6 +3081,14 @@ public final class SystemServer implements Dumpable {
                 ServiceManager.addService("things", new OdroidThingsManager());
             } catch (Throwable e) {
                 reportWtf("Notifying ThingsManager running", e);
+            }
+            t.traceEnd();
+
+            t.traceBegin("RtcReady");
+            try {
+                ServiceManager.addService(RtcManager.Descriptor, new RtcManager());
+            } catch (Throwable e) {
+                reportWtf("Notifying Rtc Manager running", e);
             }
             t.traceEnd();
         }, t);

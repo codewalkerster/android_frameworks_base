@@ -73,6 +73,7 @@ cc_library_static {
         "rkbox/rklog.cpp",
         "com_android_server_RKBoxService.cpp",
         "com_google_android_things_odroidThingService.cpp",
+        "vendor_hardkernel_hardware_rtc_rtcService.cpp",
         "onload.cpp",
         ":lib_cachedAppOptimizer_native",
         ":lib_gameManagerService_native",
@@ -198,6 +199,7 @@ cc_defaults {
         "rockchip.hardware.tv.input@1.0",
         "librksoundsetting",
         "vendor.hardkernel.hardware.odroidthings@1.0",
+        "vendor.hardkernel.hardware.rtc-V1-ndk",
     ],
 
     static_libs: [
