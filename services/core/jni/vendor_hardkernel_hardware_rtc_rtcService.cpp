@@ -57,12 +57,12 @@ public:
 
 std::shared_ptr<IRtc> Rtc::sRtc = nullptr;
 
-static jstring getTime(JNIEnv* env, jobject obj) {
+static jlong getTime(JNIEnv* env, jobject obj) {
     std::shared_ptr<IRtc> rtc = Rtc::associate();
-    std::string rtc_time_secs;
+    jlong rtc_time_secs;
     rtc->getTime(&rtc_time_secs);
 
-    return env->NewStringUTF(rtc_time_secs.c_str());
+    return rtc_time_secs;
 }
 
 static void setWakeupAlarm(JNIEnv* env, jobject obj, jlong secs) {
@@ -73,7 +73,7 @@ static void setWakeupAlarm(JNIEnv* env, jobject obj, jlong secs) {
 static const JNINativeMethod sManagerMethods[] = {
     /* name, signature, funcPtr */
     {"native_getTime",
-        "()Ljava/lang/String;",
+        "()J",
         reinterpret_cast<void *>(getTime)},
     {"native_setRtcWakeup",
         "(J)V",
