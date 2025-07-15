@@ -59,6 +59,7 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.util.Slog;
 
@@ -457,8 +458,12 @@ public class Utils {
      */
     public static boolean isKeyguard(@NonNull Context context, @Nullable String clientPackage) {
         final boolean hasPermission = hasInternalPermission(context);
-        final ComponentName keyguardComponent = ComponentName.unflattenFromString(
-                context.getResources().getString(R.string.config_keyguardComponent));
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+        final ComponentName keyguardComponent;
+        if (kiosk)
+            keyguardComponent = ComponentName.unflattenFromString("");
+        else
+            keyguardComponent = ComponentName.unflattenFromString(context.getResources().getString(R.string.config_keyguardComponent));
         final String keyguardPackage = keyguardComponent != null
                 ? keyguardComponent.getPackageName() : null;
         return hasPermission && keyguardPackage != null && keyguardPackage.equals(clientPackage);

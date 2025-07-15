@@ -39,6 +39,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -269,6 +270,8 @@ public class NavigationBarView extends FrameLayout {
                 }
             };
 
+    //ODROID
+    private boolean kiosk = false;
     public NavigationBarView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
@@ -324,6 +327,7 @@ public class NavigationBarView extends FrameLayout {
         mButtonDispatchers.put(R.id.accessibility_button, accessibilityButton);
         mButtonDispatchers.put(R.id.menu_container, mContextualButtonGroup);
         mDeadZone = new DeadZone(this);
+        kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
     }
 
     public void setEdgeBackGestureHandler(EdgeBackGestureHandler edgeBackGestureHandler) {
@@ -1003,6 +1007,11 @@ public class NavigationBarView extends FrameLayout {
                             com.android.internal.R.dimen.navigation_bar_height);
             int frameHeight = getResources().getDimensionPixelSize(
                     com.android.internal.R.dimen.navigation_bar_frame_height);
+            //ODROID
+            if (kiosk) {
+                height = 0;
+                frameHeight = 0;
+            }
             mBarTransitions.setBackgroundFrame(new Rect(0, frameHeight - height, w, h));
         } else {
             mBarTransitions.setBackgroundFrame(null);
@@ -1012,7 +1021,11 @@ public class NavigationBarView extends FrameLayout {
     }
 
     int getNavBarHeight() {
-        return mIsVertical
+        //ODROID
+        if (kiosk)
+            return 0;
+        else
+            return mIsVertical
                 ? getResources().getDimensionPixelSize(
                 com.android.internal.R.dimen.navigation_bar_height_landscape)
                 : getResources().getDimensionPixelSize(

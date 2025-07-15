@@ -19,6 +19,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.service.dreams.DreamManagerInternal;
+import android.os.SystemProperties;
 import android.util.Log;
 import android.util.Slog;
 import android.util.proto.ProtoOutputStream;
@@ -154,8 +155,12 @@ public class KeyguardServiceDelegate {
         Intent intent = new Intent();
         final Resources resources = context.getApplicationContext().getResources();
 
-        final ComponentName keyguardComponent = ComponentName.unflattenFromString(
-                resources.getString(com.android.internal.R.string.config_keyguardComponent));
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+        final ComponentName keyguardComponent;
+            if(kiosk)
+                keyguardComponent = ComponentName.unflattenFromString("");
+            else
+                keyguardComponent = ComponentName.unflattenFromString(resources.getString(com.android.internal.R.string.config_keyguardComponent));
         intent.addFlags(Intent.FLAG_DEBUG_TRIAGED_MISSING);
         intent.setComponent(keyguardComponent);
 

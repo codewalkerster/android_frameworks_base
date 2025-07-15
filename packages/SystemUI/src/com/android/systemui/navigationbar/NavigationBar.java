@@ -72,6 +72,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.provider.DeviceConfig;
 import android.telecom.TelecomManager;
 import android.text.TextUtils;
@@ -528,6 +529,9 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
         }
     };
 
+    //ODROID
+    private boolean kiosk = false;
+
     @Inject
     NavigationBar(
             NavigationBarView navigationBarView,
@@ -669,6 +673,7 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
         mView.setEdgeBackGestureHandler(mEdgeBackGestureHandler);
         mView.setDisplayTracker(mDisplayTracker);
         mNavBarMode = mNavigationModeController.addListener(mModeChangedListener);
+        kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
     }
 
     public NavigationBarView getView() {
@@ -1671,6 +1676,10 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
                     com.android.internal.R.dimen.navigation_bar_frame_height);
             insetsHeight = userContext.getResources().getDimensionPixelSize(
                     com.android.internal.R.dimen.navigation_bar_height);
+            if (kiosk) {
+                height = 0;
+                insetsHeight = 0;
+            }
         } else {
             switch (rotation) {
                 case ROTATION_UNDEFINED:
@@ -1680,16 +1689,24 @@ public class NavigationBar extends ViewController<NavigationBarView> implements 
                             com.android.internal.R.dimen.navigation_bar_frame_height);
                     insetsHeight = userContext.getResources().getDimensionPixelSize(
                             com.android.internal.R.dimen.navigation_bar_height);
+                    if (kiosk) {
+                        height = 0;
+                        insetsHeight = 0;
+                    }
                     break;
                 case Surface.ROTATION_90:
                     gravity = Gravity.RIGHT;
                     width = userContext.getResources().getDimensionPixelSize(
                             com.android.internal.R.dimen.navigation_bar_width);
+                    if (kiosk)
+                        width = 0;
                     break;
                 case Surface.ROTATION_270:
                     gravity = Gravity.LEFT;
                     width = userContext.getResources().getDimensionPixelSize(
                             com.android.internal.R.dimen.navigation_bar_width);
+                    if (kiosk)
+                        width = 0;
                     break;
             }
         }

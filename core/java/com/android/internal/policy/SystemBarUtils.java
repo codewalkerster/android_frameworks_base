@@ -22,6 +22,7 @@ import android.graphics.Insets;
 import android.util.RotationUtils;
 import android.view.DisplayCutout;
 import android.view.Surface;
+import android.os.SystemProperties;
 
 import com.android.internal.R;
 
@@ -36,7 +37,12 @@ public final class SystemBarUtils {
      * Gets the status bar height.
      */
     public static int getStatusBarHeight(Context context) {
-        return getStatusBarHeight(context.getResources(), context.getDisplay().getCutout());
+        //ODROID
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+        if (kiosk)
+            return 0;
+        else
+            return getStatusBarHeight(context.getResources(), context.getDisplay().getCutout());
     }
 
     /**
@@ -48,7 +54,12 @@ public final class SystemBarUtils {
         final int waterfallInsetTop = cutout == null ? 0 : cutout.getWaterfallInsets().top;
         // The status bar height should be:
         // Max(top cutout size, (status bar default height + waterfall top size))
-        return Math.max(safeInsetTop, defaultSize + waterfallInsetTop);
+        //ODROID
+        boolean kiosk = SystemProperties.getBoolean("persist.kiosk_mode", false);
+        if (kiosk)
+            return 0;
+        else
+            return Math.max(safeInsetTop, defaultSize + waterfallInsetTop);
     }
 
     /**
