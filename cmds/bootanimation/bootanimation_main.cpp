@@ -154,6 +154,9 @@ int main()
         ProcessState::self()->startThreadPool();
 
         waitForSurfaceFlinger();
+        //ODROID
+        if (isPortrait())
+            usleep(3500000);
 
         // create the boot animation object
         sp<BootAnimation> boot = new BootAnimation(new AudioAnimationCallbacks());

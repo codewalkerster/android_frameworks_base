@@ -19,6 +19,9 @@ namespace android {
 // Returns true if boot animation is disabled.
 bool bootAnimationDisabled();
 
+// ODROID
+bool isPortrait();
+
 // Waits until the surface flinger is up.
 void waitForSurfaceFlinger();
 

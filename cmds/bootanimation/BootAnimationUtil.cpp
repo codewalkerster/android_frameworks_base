@@ -36,6 +36,16 @@ bool bootAnimationDisabled() {
     return atoi(value) > 0;
 }
 
+bool isPortrait() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.surface_flinger.primary_display_orientation", value, "ORIENTATION_0");
+    if (strcmp(value, "ORIENTATION_270") == 0 ||
+            strcmp(value, "ORIENTATION_90") == 0)
+        return true;
+    else
+        return false;
+}
+
 void waitForSurfaceFlinger() {
     // TODO: replace this with better waiting logic in future, b/35253872
     int64_t waitStartTime = elapsedRealtime();
