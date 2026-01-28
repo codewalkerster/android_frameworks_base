@@ -46,6 +46,12 @@ bool isPortrait() {
         return false;
 }
 
+int getBootanimDelay() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("persist.bootanim.delay", value, "3500000");
+    return atoi(value);
+}
+
 void waitForSurfaceFlinger() {
     // TODO: replace this with better waiting logic in future, b/35253872
     int64_t waitStartTime = elapsedRealtime();

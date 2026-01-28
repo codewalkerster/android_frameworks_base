@@ -21,6 +21,7 @@ bool bootAnimationDisabled();
 
 // ODROID
 bool isPortrait();
+int getBootanimDelay();
 
 // Waits until the surface flinger is up.
 void waitForSurfaceFlinger();

@@ -156,7 +156,7 @@ int main()
         waitForSurfaceFlinger();
         //ODROID
         if (isPortrait())
-            usleep(3500000);
+            usleep(getBootanimDelay());
 
         // create the boot animation object
         sp<BootAnimation> boot = new BootAnimation(new AudioAnimationCallbacks());
