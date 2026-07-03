@@ -37,6 +37,7 @@ import android.os.Binder;
 import android.os.Environment;
 import android.os.Process;
 import android.os.UserHandle;
+import android.os.SystemProperties;
 import android.service.usb.UsbAccessoryPermissionProto;
 import android.service.usb.UsbAccessoryPersistentPermissionProto;
 import android.service.usb.UsbDevicePermissionProto;
@@ -120,8 +121,16 @@ class UsbUserPermissionManager {
         mUser = context.getUser();
         mUsbUserSettingsManager = usbUserSettingsManager;
         mSensorPrivacyMgrInternal = LocalServices.getService(SensorPrivacyManagerInternal.class);
-        mDisablePermissionDialogs = context.getResources().getBoolean(
+
+        //ODROID
+        boolean disableUsbPermissionDialog =
+            SystemProperties.getBoolean("persist.disable.usbpermission.dialog", false);
+        if (disableUsbPermissionDialog)
+            mDisablePermissionDialogs = true;
+        else
+            mDisablePermissionDialogs = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_disableUsbPermissionDialogs);
+
 
         mPermissionsFile = new AtomicFile(new File(
                 Environment.getUserSystemDirectory(mUser.getIdentifier()),
